@@ -1,4 +1,4 @@
-function [XDOT] = RCAM_model(X, U)
+function [XDOT] = RocketModel(X, U)
 
 % Visualization of Both Frames:
 % ---------------------------------
@@ -8,7 +8,7 @@ function [XDOT] = RCAM_model(X, U)
 %         |  
 %         |  
 %         o-------> X (East)
-%
+%tes
 %   Body Frame (rotates with rocket)
 %          ^
 %      Y_b |   
@@ -30,8 +30,8 @@ m = 5; % Rocket total mass (kg)
 
 
 %Centre of gravity coordinates
-l_p = ; % The distance from aerodynamic centre to centre of mass
-l = ; % Distance from centre of mass to nozzle
+l_p = 1; % The distance from aerodynamic centre to centre of mass
+l = 1.5; % Distance from centre of mass to nozzle
 
 
 %Environmental constants
@@ -68,6 +68,10 @@ wbe_b = [x5]; % Angular velocity vector in body frame
 V_b = [x1; x2]; % Velocity vector in body frame
 
 
+%Inertia Matrix for 2D
+Ib = m * 40.07; % Simplified inertia for 2D (example value)
+invIb = 1 / Ib; % Inverse of inertia
+
 
 % THRUST FORCE AND MOMENT
 %Thrust
@@ -86,7 +90,26 @@ Fg_b = m * g_b; % Gravitational force in body frame
 
 
 %Form F_b (all forces in Fb) and calc udot, vdot, wdot
-F_b = Fg_b + Fp_b; % %Gravity force vector, Thrust force vector
+F_b = Fg_b + Fp_b; % Gravity force vector, Thrust force vector
 
-x1to3dot = (1 / m) * F_b - cross(wbe_b, V_b); % Translational accelerations
+% Simplified cross product for 2D
+cross_wbe_b_V_b = wbe_b * V_b(2) - wbe_b * V_b(1);
+
+% Split x1to3dot into separate calculations
+udot = (1 / m) * F_b(1) - cross_wbe_b_V_b; % Translational acceleration in x direction
+vdot = (1 / m) * F_b(2) - cross_wbe_b_V_b; % Translational acceleration in y direction
+
+x1to3dot = [udot; vdot]; % Combine into a vector
+
+%Form Mcg_b (All moments about CoG in Fb) and calc qdot
+Mcg_b = l_p * Fp_b(2); % Moment due to thrust (simplified for 2D)
+x4dot = invIb * (Mcg_b - wbe_b * Ib * wbe_b); % Rotational acceleration (qdot)
+
+%Calculate thetadot
+x5dot = x5; % Angular rate (thetadot)
+
+%Place in first order form
+XDOT = [x1to3dot;
+        x4dot;
+        x5dot]; % State derivatives
 
