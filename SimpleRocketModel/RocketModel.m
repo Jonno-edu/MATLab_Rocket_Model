@@ -1,18 +1,4 @@
 function [XDOT] = RocketModel(X, U)
-    % Visualization of Both Frames:
-    % ---------------------------------
-    %
-    %   Earth Frame (Inertial)
-    %         ^ Y (Up, Altitude)
-    %         |  
-    %         |  
-    %         o-------> X (East)
-    %
-    %   Body Frame (rotates with rocket)
-    %          ^
-    %      Y_b |   
-    %          |-----> X_b  (Rocket forward)
-    
     % State Variables
     u = X(1);       % Velocity along body x-axis 
     v = X(2);       % Velocity along body y-axis
@@ -23,68 +9,40 @@ function [XDOT] = RocketModel(X, U)
     thrust = U(1);          % Thrust magnitude (N)
     nozzlePitch = U(2);     % Nozzle pitch angle (rad)
     
-    % CONSTANTS
+    % Constants
     m = 3.9;      % Rocket total mass (kg)
-    l_p = 1;    % Distance from aerodynamic centre to centre of mass
-    l   = 1;  % Distance from centre of mass to nozzle
-    
-    % Environmental constants
-    rho = 1.225; % Air density (kg/m^3)
-    g = 9.81;    % Gravitational acceleration (m/s^2)
-    
-    % CONTROL LIMITS/SATURATION
-    thrust_min = 0;         % min thrust (N)
-    thrust_max = 500;       % max thrust (N)
-    nozzle_min = -10 * pi / 180; % Min nozzle pitch (rad)
-    nozzle_max = 10 * pi / 180;  % Max nozzle pitch (rad)
-    
-
-    
-    % Inertia Matrix for 2D (simplified)
-    Ib = 1037524.81888/(1000*1000);  % Example inertia value
+    l = 1;        % Distance from CoM to nozzle
+    g = 9.81;     % Gravitational acceleration (m/s²)
+    Ib = 1037524.81888/(1000*1000);  % Moment of inertia
     invIb = 1 / Ib;
     
-    % THRUST FORCE AND MOMENT
-    % Use nozzle pitch angle for thrust direction
+    % Thrust force in body frame
     gamma = nozzlePitch;
-    Fp = thrust;  % Thrust magnitude (N)
-    Fp_b = Fp * [cos(gamma); sin(gamma)]; 
+    Fp_b = thrust * [cos(gamma); sin(gamma)];
     
-    % GRAVITY EFFECTS in Body Frame
-    % Convert gravity to body frame using pitch angle theta
+    % Gravity force in body frame (depends on actual theta)
     g_b = [-g * sin(theta); 
            -g * cos(theta)];
-    Fg_b = m * g_b;  % = m * [-g*sin(theta); -g*cos(theta)]
+    Fg_b = m * g_b;
     
-    % Net Force in the Body Frame
+    % Net force in body frame
     F_b = Fp_b + Fg_b;
     
-    % Compute accelerations (Newton's Second Law)
-    udot = F_b(1) / m;
-    vdot = F_b(2) / m;
+    % Compute accelerations with Coriolis terms
+    udot = F_b(1)/m + q*v;
+    vdot = F_b(2)/m - q*u;
     
-    % Angular Dynamics (Moment about centre of gravity)
-    % Here we assume moment arm is l and only the y-component of thrust causes moment.
+    % Moment about CoM and angular acceleration
     Mcg_b = -l * Fp_b(2);
     qdot = invIb * Mcg_b;
     
     % Theta dot is the pitch rate
     thetadot = q;
-
-    %Navigation Equations
+    
+    % Navigation equations (body to global velocity)
     vx_v = u * cos(theta) - v * sin(theta);
     vy_v = u * sin(theta) + v * cos(theta);
-
-    if thrust == 0
-        theta = 0;
-        thetadot = 0;
-    end
- 
-    % Return state derivatives in first-order form
-    XDOT = [udot;
-            vdot;
-            qdot;
-            thetadot;
-            vx_v;
-            vy_v];
+    
+    % State derivatives
+    XDOT = [udot; vdot; qdot; thetadot; vx_v; vy_v];
 end
