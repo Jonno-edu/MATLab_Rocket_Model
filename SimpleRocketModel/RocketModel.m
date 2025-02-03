@@ -24,9 +24,9 @@ function [XDOT] = RocketModel(X, U)
     nozzlePitch = U(2);     % Nozzle pitch angle (rad)
     
     % CONSTANTS
-    m = 63/1000;      % Rocket total mass (kg)
+    m = 3.9;      % Rocket total mass (kg)
     l_p = 1;    % Distance from aerodynamic centre to centre of mass
-    l   = 24.8/100;  % Distance from centre of mass to nozzle
+    l   = 1;  % Distance from centre of mass to nozzle
     
     % Environmental constants
     rho = 1.225; % Air density (kg/m^3)
@@ -41,7 +41,7 @@ function [XDOT] = RocketModel(X, U)
 
     
     % Inertia Matrix for 2D (simplified)
-    Ib = 0.000995;  % Example inertia value
+    Ib = 1037524.81888/(1000*1000);  % Example inertia value
     invIb = 1 / Ib;
     
     % THRUST FORCE AND MOMENT
@@ -74,6 +74,11 @@ function [XDOT] = RocketModel(X, U)
     %Navigation Equations
     vx_v = u * cos(theta) - v * sin(theta);
     vy_v = u * sin(theta) + v * cos(theta);
+
+    if thrust == 0
+        theta = 0;
+        thetadot = 0;
+    end
  
     % Return state derivatives in first-order form
     XDOT = [udot;
