@@ -24,9 +24,9 @@ function [XDOT] = RocketModel(X, U)
     nozzlePitch = U(2);     % Nozzle pitch angle (rad)
     
     % CONSTANTS
-    m = 2;      % Rocket total mass (kg)
+    m = 63/1000;      % Rocket total mass (kg)
     l_p = 1;    % Distance from aerodynamic centre to centre of mass
-    l   = 1.5;  % Distance from centre of mass to nozzle
+    l   = 24.8/100;  % Distance from centre of mass to nozzle
     
     % Environmental constants
     rho = 1.225; % Air density (kg/m^3)
@@ -38,25 +38,23 @@ function [XDOT] = RocketModel(X, U)
     nozzle_min = -10 * pi / 180; % Min nozzle pitch (rad)
     nozzle_max = 10 * pi / 180;  % Max nozzle pitch (rad)
     
-    % Saturate control inputs
-    thrust = min(max(thrust, thrust_min), thrust_max);
-    nozzlePitch = min(max(nozzlePitch, nozzle_min), nozzle_max);
+
     
     % Inertia Matrix for 2D (simplified)
-    Ib = m * 40.07;  % Example inertia value
+    Ib = 0.000995;  % Example inertia value
     invIb = 1 / Ib;
     
     % THRUST FORCE AND MOMENT
     % Use nozzle pitch angle for thrust direction
-    gamma = nozzlePitch;  
+    gamma = nozzlePitch;
     Fp = thrust;  % Thrust magnitude (N)
-    Fp_b = Fp * [cos(gamma); sin(gamma)];
+    Fp_b = Fp * [cos(gamma); sin(gamma)]; 
     
     % GRAVITY EFFECTS in Body Frame
     % Convert gravity to body frame using pitch angle theta
     g_b = [-g * sin(theta); 
-            g * cos(theta)];
-    Fg_b = m * g_b;
+           -g * cos(theta)];
+    Fg_b = m * g_b;  % = m * [-g*sin(theta); -g*cos(theta)]
     
     % Net Force in the Body Frame
     F_b = Fp_b + Fg_b;
@@ -67,15 +65,21 @@ function [XDOT] = RocketModel(X, U)
     
     % Angular Dynamics (Moment about centre of gravity)
     % Here we assume moment arm is l and only the y-component of thrust causes moment.
-    Mcg_b = l * Fp_b(2);
+    Mcg_b = -l * Fp_b(2);
     qdot = invIb * Mcg_b;
     
     % Theta dot is the pitch rate
     thetadot = q;
-    
+
+    %Navigation Equations
+    vx_v = u * cos(theta) - v * sin(theta);
+    vy_v = u * sin(theta) + v * cos(theta);
+ 
     % Return state derivatives in first-order form
     XDOT = [udot;
             vdot;
             qdot;
-            thetadot];
+            thetadot;
+            vx_v;
+            vy_v];
 end
