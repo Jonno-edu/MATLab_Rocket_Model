@@ -30,6 +30,7 @@ t = out.simX.Time;
 u1 = out.simU.Data(:,1);  % Thrust (N)
 u2 = out.simU.Data(:,2);  % Nozzle pitch angle (rad)
 theta_error = out.simU.Data(:,3);  % Ref body angle (rad)
+q_error = out.simU.Data(:,4);  % Ref body angle rate (rad/s)
 
 % Instantaneous States
 u     = out.simX.Data(:,1);  % Body x-axis velocity (m/s)
@@ -136,8 +137,9 @@ legend('trajectory')
 axis equal
 
 figure
+
 % theta: Pitch angle
-subplot(1, 1, 1)
+subplot(1, 2, 1)
 plot(t, theta, 'LineWidth', 1.5)
 hold on
 plot(t, theta_error, 'LineWidth', 1.5)
@@ -146,4 +148,17 @@ xlabel('Time (s)')
 ylabel('\theta (rad)')
 title('State x_4: Pitch Angle')
 grid on
-legend('theta')
+legend('\theta_{setpoint}', '\theta_{measured}')
+
+% theta rate: Pitch angle rate
+subplot(1, 2, 2) 
+plot(t, q, 'LineWidth', 1.5)
+hold on
+plot(t, q_error, 'LineWidth', 1.5)
+hold off
+xlabel('Time (s)')
+ylabel('q (rad/s)')
+title('State x_5: Pitch Angle Rate') 
+grid on
+legend('q_{setpoint}', 'q_{measured}')
+
