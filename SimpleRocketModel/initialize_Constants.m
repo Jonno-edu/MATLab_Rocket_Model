@@ -11,8 +11,11 @@ x0 = [0;
       0;
       0];
 
+u = [200;
+    (0.1)*pi/180];
+
   
-TF = 20;
+TF = 30;
 
 %% Run the model
 mdl = 'RocketSimulation.slx';
