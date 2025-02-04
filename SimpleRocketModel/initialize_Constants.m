@@ -11,8 +11,10 @@ x0 = [0;
       0;
       0];
 
-u = [200;
+u = [100;
     (0.1)*pi/180];
+
+burn_time = 10;
 
   
 TF = 30;
@@ -27,12 +29,14 @@ t = out.simX.Time;
 % Control Inputs
 u1 = out.simU.Data(:,1);  % Thrust (N)
 u2 = out.simU.Data(:,2);  % Nozzle pitch angle (rad)
+theta_error = out.simU.Data(:,3);  % Ref body angle (rad)
 
 % Instantaneous States
 u     = out.simX.Data(:,1);  % Body x-axis velocity (m/s)
 v     = out.simX.Data(:,2);  % Body y-axis velocity (m/s)
 q     = out.simX.Data(:,3);  % Pitch rate (rad/s)
 theta = out.simX.Data(:,4);  % Pitch angle (rad)
+
 
 % Integrated States
 
@@ -90,6 +94,9 @@ legend('q')
 % theta: Pitch angle
 subplot(3, 2, 4)
 plot(t, theta, 'LineWidth', 1.5)
+hold on
+plot(t, theta_error, 'LineWidth', 1.5)
+hold off
 xlabel('Time (s)')
 ylabel('\theta (rad)')
 title('State x_4: Pitch Angle')
@@ -127,3 +134,16 @@ title('Trajectory')
 grid on
 legend('trajectory')
 axis equal
+
+figure
+% theta: Pitch angle
+subplot(1, 1, 1)
+plot(t, theta, 'LineWidth', 1.5)
+hold on
+plot(t, theta_error, 'LineWidth', 1.5)
+hold off
+xlabel('Time (s)')
+ylabel('\theta (rad)')
+title('State x_4: Pitch Angle')
+grid on
+legend('theta')
