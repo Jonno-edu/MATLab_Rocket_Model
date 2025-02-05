@@ -1,4 +1,4 @@
-% Initialize constants for RCAM simulation
+% Initialize constants for Rocket simulation
 clear
 clc
 close all
