@@ -11,8 +11,8 @@ x0 = [0;
       0;
       0];
 
-u = [100;
-    (0.1)*pi/180];
+u = [50;
+    (0.5)*pi/180];
 
 burn_time = 10;
 
@@ -138,27 +138,25 @@ axis equal
 
 figure
 
-% theta: Pitch angle
 subplot(1, 2, 1)
-plot(t, theta, 'LineWidth', 1.5)
+h1 = plot(t, theta, 'LineWidth', 1.5);
 hold on
-plot(t, theta_error, 'LineWidth', 1.5)
+h2 = plot(t, theta_error, 'LineWidth', 1.5);
 hold off
 xlabel('Time (s)')
 ylabel('\theta (rad)')
 title('State x_4: Pitch Angle')
 grid on
-legend('\theta_{setpoint}', '\theta_{measured}')
+legend([h1, h2], '\theta_{measured}', '\theta_{setpoint}')
 
-% theta rate: Pitch angle rate
-subplot(1, 2, 2) 
-plot(t, q, 'LineWidth', 1.5)
+subplot(1, 2, 2)
+h3 = plot(t, q, 'LineWidth', 1.5);
 hold on
-plot(t, q_error, 'LineWidth', 1.5)
+h4 = plot(t, q_error, 'LineWidth', 1.5);
 hold off
 xlabel('Time (s)')
 ylabel('q (rad/s)')
 title('State x_5: Pitch Angle Rate') 
 grid on
-legend('q_{setpoint}', 'q_{measured}')
+legend([h3, h4], 'q_{measured}', 'q_{setpoint}')
 
