@@ -6,9 +6,7 @@ classdef GimbalThrustModel < matlab.System
 
     % Public, tunable properties
     properties
-        nozzleOffset = -1;
-        nozzle_max_angle = (6)*pi/180; % Rad
-
+        nozzleOffset = 0.01;
     end
 
     % Pre-computed constants or internal states
