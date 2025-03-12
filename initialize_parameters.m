@@ -1,4 +1,4 @@
-%% initialize.m - Use Index-Based Lookup for Prelookup
+%% initialize.m - Initialize rocket simulation parameters
 clearvars -except STeVe*; clc; close all;
 
 %% System Parameters
@@ -14,9 +14,9 @@ Actuators.Nozzle.MomentArm = 0.1;                % nozzle_moment_arm [m]
 
 Actuators.Engine.MaxThrust = 27.6*10^3;          % max_thrust [N]
 Actuators.Engine.BurnTime = 63;                  % Burn time in seconds
-Actuators.Engine.DelayBeforeStart = 5;           %Delay time in seconds
+Actuators.Engine.DelayBeforeStart = 5;           % Delay time in seconds
 
-%% Import Data (Verify Time Spacing First)
+%% Import Mass Data (Verify Time Spacing First)
 if ~exist('STeVeV1NoFins', 'var')
     opts = detectImportOptions("STeVe V1 No Fins.xlsx", "Sheet", "Mass Properties");
     opts.DataRange = "A2:F12602";
@@ -29,7 +29,110 @@ if ~exist('STeVeV1NoFins', 'var')
         'Time vector not perfectly spaced! Max Δt error: %.2e', max(abs(dt - 0.005)));
 end
 
-%% Create Index-Based Prelookup Data
+%% Import Aerodynamic Coefficient Data
+if ~exist('STeVeV1NoFinsS2', 'var')
+    opts = spreadsheetImportOptions("NumVariables", 15);
+    
+    % Specify sheet and range
+    opts.Sheet = "Aero Properties";
+    opts.DataRange = "A2:O7501";
+    
+    % Specify column names and types
+    opts.VariableNames = ["Mach", "Alpha", "CD", "CDPower_Off", "CDPower_ON", "CAPower_Off", "CAPower_On", "CL", "CN", "CNPotential", "CNViscous", "Cnalpha_0_4deg__perRad_", "CP", "CP_0_4deg_", "Reynolds"];
+    opts.VariableTypes = ["double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "double", "string"];
+    
+    % Specify variable properties
+    opts = setvaropts(opts, "Reynolds", "WhitespaceRule", "preserve");
+    opts = setvaropts(opts, "Reynolds", "EmptyFieldRule", "auto");
+    
+    % Import the data
+    STeVeV1NoFinsS2 = readtable("STeVe V1 No Fins.xlsx", opts, "UseExcel", false);
+    
+    % Import the high angle of attack data if needed
+    opts.Sheet = "Aero Properties 15deg";
+    opts.DataRange = "A2:O81";
+    STeVeV1NoFinsS3 = readtable("STeVe V1 No Fins.xlsx", opts, "UseExcel", false);
+end
+
+%% Import Contour Data and Calculate Reference Area
+if ~exist('STeVe_Contour', 'var')
+    opts = spreadsheetImportOptions("NumVariables", 3);
+    
+    % Specify sheet and range
+    opts.Sheet = "Sheet1";
+    opts.DataRange = "A2:C50";
+    
+    % Specify column names and types
+    opts.VariableNames = ["X", "Y", "Var3"];
+    opts.VariableTypes = ["double", "double", "string"];
+    
+    % Specify variable properties
+    opts = setvaropts(opts, "Var3", "WhitespaceRule", "preserve");
+    opts = setvaropts(opts, "Var3", "EmptyFieldRule", "auto");
+    
+    % Import the data
+    STeVe_Contour = readtable("STeVe-Contour.xlsx", opts, "UseExcel", false);
+end
+
+%% Calculate Reference Area from Contour
+% Find the maximum radius (Y value) in the contour data
+max_radius = max(STeVe_Contour.Y);
+
+% Calculate diameter and reference area
+RocketAeroPhysical.Diameter = 2 * max_radius;
+RocketAeroPhysical.Reference_Area = pi * max_radius^2;
+RocketAeroPhysical.Reference_Length = RocketAeroPhysical.Diameter;
+
+% Calculate rocket length
+rocket_length = max(STeVe_Contour.X) - min(STeVe_Contour.X);
+RocketAeroPhysical.Length = rocket_length;
+
+% Display physical parameters
+fprintf('\n--- Rocket Physical Parameters ---\n');
+fprintf('Diameter: %.3f m\n', RocketAeroPhysical.Diameter);
+fprintf('Reference area: %.6f m²\n', RocketAeroPhysical.Reference_Area);
+fprintf('Rocket length: %.3f m\n', RocketAeroPhysical.Length);
+
+%% Process Aerodynamic Data for Lookup Tables
+% Get unique Mach and Alpha values
+uniqueMach = unique(STeVeV1NoFinsS2.Mach);
+uniqueAlpha = unique(STeVeV1NoFinsS2.Alpha);
+
+% Create structured data for Simulink lookup tables
+AeroData.Breakpoints.Mach = uniqueMach;
+AeroData.Breakpoints.Alpha = uniqueAlpha;
+
+% Process main aerodynamic coefficients - focus on body-axis coefficients
+CN_table = nan(length(uniqueAlpha), length(uniqueMach));
+CAPower_Off_table = nan(length(uniqueAlpha), length(uniqueMach));
+CAPower_On_table = nan(length(uniqueAlpha), length(uniqueMach));
+CP_table = nan(length(uniqueAlpha), length(uniqueMach));
+Cnalpha_table = nan(length(uniqueAlpha), length(uniqueMach));
+
+% Fill tables
+for i = 1:length(STeVeV1NoFinsS2.Mach)
+    mIdx = find(uniqueMach == STeVeV1NoFinsS2.Mach(i));
+    aIdx = find(uniqueAlpha == STeVeV1NoFinsS2.Alpha(i));
+    
+    CN_table(aIdx, mIdx) = STeVeV1NoFinsS2.CN(i);
+    CAPower_Off_table(aIdx, mIdx) = STeVeV1NoFinsS2.CAPower_Off(i);
+    CAPower_On_table(aIdx, mIdx) = STeVeV1NoFinsS2.CAPower_On(i);
+    CP_table(aIdx, mIdx) = STeVeV1NoFinsS2.CP(i) * 0.0254; % Convert from Inch to Metre
+    Cnalpha_table(aIdx, mIdx) = STeVeV1NoFinsS2.Cnalpha_0_4deg__perRad_(i);
+end
+
+% Store in AeroData structure
+AeroData.Tables.CN = CN_table;
+AeroData.Tables.CAPower_Off = CAPower_Off_table;
+AeroData.Tables.CAPower_On = CAPower_On_table;
+AeroData.Tables.CP = CP_table;
+AeroData.Tables.Cnalpha = Cnalpha_table;
+
+% Create separate breakpoint variables for Simulink prelookup blocks
+Mach_Breakpoints = AeroData.Breakpoints.Mach;
+Alpha_Breakpoints = AeroData.Breakpoints.Alpha;
+
+%% Create Index-Based Prelookup Data for Mass Properties
 % Store the time step for reference
 timeStep = 0.005;
 
@@ -43,13 +146,10 @@ MassData.Mass = single(STeVeV1NoFins.Mass);
 MassData.COM_X = single(STeVeV1NoFins.COM_Z);    % Z→X
 MassData.MOI_X = single(STeVeV1NoFins.MOIz_Z);   % Z→X
 MassData.MOI_Y = single(STeVeV1NoFins.MOIx_Z);   % X→Y
-MassData.MOI_Z = single(STeVeV1NoFins.MOIy_Z);   % Y→Z
-
-%% Enforce Axisymmetry and Calculate Derivatives
+MassData.MOI_Z = single(STeVeV1NoFins.MOIy_Z);   % Y→Z... %% Enforce Axisymmetry and Calculate Derivatives
 avg_moi = (MassData.MOI_Y + MassData.MOI_Z)/2;
 MassData.MOI_Y = avg_moi;
 MassData.MOI_Z = avg_moi;
-
 MassData.dMdt = gradient(MassData.Mass, timeStep);
 MassData.dIdt_X = gradient(MassData.MOI_X, timeStep);
 MassData.dIdt_Y = gradient(MassData.MOI_Y, timeStep);
@@ -94,13 +194,26 @@ PrelookupData.Tables.InertialTensor = inertia_tensor;
 PrelookupData.Tables.dInertialTensor = d_inertia_tensor;
 PrelookupData.TimeStep = timeStep;  % Save time step for converting time to index
 
-%% Export to Simulink
+%% Create complete RocketAero structure
+RocketAero.Physical = RocketAeroPhysical;
+%% Export to Workspace and Save to MAT file
+% Export to base workspace
 assignin('base', 'PrelookupData', PrelookupData);
 assignin('base', 'Initial', Initial);
 assignin('base', 'Actuators', Actuators);
+assignin('base', 'AeroData', AeroData);
+assignin('base', 'RocketAero', RocketAero);
+assignin('base', 'Mach_Breakpoints', Mach_Breakpoints);
+assignin('base', 'Alpha_Breakpoints', Alpha_Breakpoints);
+assignin('base', 'Ref_Area', RocketAeroPhysical.Reference_Area);
+
+% Save to MAT file for use with the AerodynamicsSystem class
+save('RocketSimData.mat', 'PrelookupData', 'Initial', 'Actuators', 'AeroData', 'RocketAero',...
+    'Mach_Breakpoints', 'Alpha_Breakpoints', 'Ref_Area');
 
 %% Final Validation Message
-fprintf('\n--- Index-Based Prelookup Setup Complete ---\n');
-disp('Exported Prelookup Data to Simulink workspace.');
-disp('To use in Simulink, convert simulation time to index using:');
-fprintf('  index = (t - %.4f)/%.4f + 1\n', STeVeV1NoFins.Time(1), timeStep);
+fprintf('\n--- Initialization Complete ---\n');
+disp('Exported Mass Properties Data to workspace and saved to RocketSimData.mat');
+fprintf('Time step: %.4f seconds\n', timeStep);
+fprintf('Exported Aerodynamic Data to workspace.\n');
+disp('Use AerodynamicsSystem class to calculate forces and moments during simulation.');
