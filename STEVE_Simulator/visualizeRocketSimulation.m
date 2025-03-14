@@ -1,3 +1,7 @@
+clc; close all;
+
+initialize_parameters;
+
 mdl = "STEVE_Simulation";
 out = sim(mdl);
 
