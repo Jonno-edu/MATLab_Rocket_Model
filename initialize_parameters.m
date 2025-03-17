@@ -2,11 +2,11 @@
 clearvars -except STeVe*; clc; close all;
 
 %% System Parameters
-SimulationTime = 3;
+SimulationTime = 60*10;
 
-Initial.Conditions.theta0 = deg2rad(-80);                  % Initial pitch [deg]
+Initial.Conditions.theta0 = deg2rad(89.8);                  % Initial pitch [deg]
 Initial.Conditions.V0 = 0;                       % Initial velocity [m/s]
-Initial.Conditions.h0 = -10000;                       % Initial altitude [m]
+Initial.Conditions.h0 = -0;                       % Initial altitude [m]
 
 Actuators.Nozzle.NaturalFreq = 1;                % wn_act [rad/s]
 Actuators.Nozzle.DampingRatio = 0.3;             % z_act
@@ -14,8 +14,8 @@ Actuators.Nozzle.MaxDeflection = deg2rad(30);    % maxdef_nozzle [rad]
 Actuators.Nozzle.RateLimit = deg2rad(1000);      % rate_lim_nozzle [rad/s]
 Actuators.Nozzle.MomentArm = 0.1;                % nozzle_moment_arm [m]
 
-Actuators.Engine.MaxThrust = (27.6*10^3)*0;          % max_thrust [N]
-Actuators.Engine.BurnTime = 63;                  % Burn time in seconds
+Actuators.Engine.MaxThrust = (27.6*10^3)*1;          % max_thrust [N]
+Actuators.Engine.BurnTime = 63*0.8;                  % Burn time in seconds
 Actuators.Engine.DelayBeforeStart = 5;           % Delay time in seconds
 
 %% Import Mass Data (Verify Time Spacing First)
