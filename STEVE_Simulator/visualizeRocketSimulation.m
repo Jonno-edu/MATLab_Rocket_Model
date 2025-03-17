@@ -15,6 +15,18 @@ theta = out.theta.Data;
 psi = out.psi.Data;
 alpha = out.alpha.Data;
 
+% Skip the first N frames
+N = 2;  % Number of frames to skip
+t = t(N+1:end);
+Ve = Ve(N+1:end,:);
+Xe = Xe(N+1:end,:);
+Vb = Vb(N+1:end,:);
+phi = phi(N+1:end);
+theta = theta(N+1:end);
+psi = psi(N+1:end);
+alpha = alpha(N+1:end);
+
+
 % Convert earth frame z to make "up" positive
 Xe(:,3) = -Xe(:,3);  % Invert z-position (altitude)
 Ve(:,3) = -Ve(:,3);  % Invert z-velocity
@@ -99,3 +111,43 @@ axes('Parent', tab3, 'Position', [0.1, 0.1, 0.8, 0.35]);
 plot(t, alpha*180/pi, 'LineWidth', 2);
 grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
 title('Angle of Attack');
+
+% Calculate and display key flight metrics
+tab4 = uitab(tabgp, 'Title', 'Flight Metrics');
+
+% Calculate metrics
+max_altitude = max(Xe(:,3));
+[max_speed, max_speed_idx] = max(sqrt(sum(Ve.^2, 2)));
+horiz_dist = sqrt(Xe(end,1)^2 + Xe(end,2)^2);
+max_horiz_dist = max(sqrt(sum(Xe(:,1:2).^2, 2)));
+flight_time = t(end);
+[max_accel, max_accel_idx] = max(diff(sqrt(sum(Ve.^2, 2)))./diff(t));
+max_aoa = max(abs(alpha)) * 180/pi;
+
+% Create text display for metrics
+metrics_text = {
+    sprintf('Maximum Altitude: %.1f km', max_altitude/1000.0)
+    sprintf('Maximum Speed: %.1f m/s (at t=%.1f s)', max_speed, t(max_speed_idx))
+    sprintf('Final Distance from Launch Pad: %.1f km', horiz_dist/1000.0)
+    sprintf('Maximum Distance from Launch Pad: %.1f km', max_horiz_dist/1000.0)
+    sprintf('Total Flight Time: %.1f s', flight_time)
+    sprintf('Maximum Acceleration: %.1f m/s²', max_accel)
+    sprintf('Maximum Angle of Attack: %.1f degrees', max_aoa)
+};
+
+% Display metrics in a clean text box
+annotation(tab4, 'textbox', [0.1 0.1 0.8 0.8], ...
+    'String', metrics_text, ...
+    'FontSize', 14, ...
+    'FontName', 'Consolas', ...
+    'EdgeColor', 'none', ...
+    'VerticalAlignment', 'middle');
+
+% Print metrics to command window as well
+fprintf('\n=== Key Flight Metrics ===\n');
+fprintf('%s\n', metrics_text{:});
+
+% Save trajectory data for Python visualization
+trajectory_data = [t, Xe, theta];
+writematrix(trajectory_data, 'rocket_trajectory.csv');
+fprintf('Trajectory data saved to rocket_trajectory.csv\n');
