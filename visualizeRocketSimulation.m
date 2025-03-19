@@ -1,4 +1,4 @@
-clc; close all;
+%clc; close all;
 
 initialize_parameters;
 
@@ -15,6 +15,14 @@ theta = out.theta.Data;
 psi = out.psi.Data;
 alpha = out.alpha.Data;
 
+% Extract force and moment data
+Fwind = out.Fwind.Data;
+Mwind = out.Mwind.Data;
+Fthrust = out.Fthrust.Data;
+Mthrust = out.Mthrust.Data;
+Fnet = out.Fnet.Data;
+Mnet = out.Mnet.Data;
+
 % Skip the first N frames
 N = 2;  % Number of frames to skip
 t = t(N+1:end);
@@ -26,6 +34,13 @@ theta = theta(N+1:end);
 psi = psi(N+1:end);
 alpha = alpha(N+1:end);
 
+% Skip first N frames for forces and moments too
+Fwind = Fwind(N+1:end,:);
+Mwind = Mwind(N+1:end,:);
+Fthrust = Fthrust(N+1:end,:);
+Mthrust = Mthrust(N+1:end,:);
+Fnet = Fnet(N+1:end,:);
+Mnet = Mnet(N+1:end,:);
 
 % Convert earth frame z to make "up" positive
 Xe(:,3) = -Xe(:,3);  % Invert z-position (altitude)
@@ -49,7 +64,6 @@ axes('Parent', tab1, 'Position', [0.4, 0.55, 0.55, 0.35]);
 plot(t, Xe(:,3), 'r-', 'LineWidth', 2);
 grid on; xlabel('Time (s)'); ylabel('Altitude (m)');
 title('Altitude vs Time');
-% No need for YDir 'reverse' since we modified the data
 
 % Ground Track (horizontal plane)
 axes('Parent', tab1, 'Position', [0.05, 0.1, 0.3, 0.35]);
@@ -81,7 +95,6 @@ axes('Parent', tab2, 'Position', [0.55, 0.55, 0.4, 0.35]);
 plot(t, Ve(:,3), 'r-', 'LineWidth', 2);
 grid on; xlabel('Time (s)'); ylabel('Velocity (m/s)');
 title('Earth-Frame Vertical Velocity (Z)');
-% No need for YDir 'reverse' since we modified the data
 
 % Body-frame velocities (leave as is)
 axes('Parent', tab2, 'Position', [0.05, 0.1, 0.4, 0.35]);
@@ -97,20 +110,31 @@ grid on; xlabel('Time (s)'); ylabel('Velocity (m/s)');
 title('Body-Frame Lateral Velocity Components');
 legend('V_b_y', 'V_b_z', 'Location', 'best');
 
-% Tab 3: Attitude (theta only)
+% Tab 3: Attitude and Angular Rates
 tab3 = uitab(tabgp, 'Title', 'Attitude');
 
-% Only plot theta (pitch) since that's the only active rotation
-axes('Parent', tab3, 'Position', [0.1, 0.55, 0.8, 0.35]);
+% Extract angular rates
+w = out.w.Data;
+w = w(N+1:end,:);  % Skip first N frames like other variables
+
+% Plot theta (pitch)
+axes('Parent', tab3, 'Position', [0.1, 0.7, 0.8, 0.25]);
 plot(t, theta*180/pi, 'g-', 'LineWidth', 2);
 grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
 title('Pitch Angle (theta)');
 
-% Angle of attack
-axes('Parent', tab3, 'Position', [0.1, 0.1, 0.8, 0.35]);
+% Plot angle of attack
+axes('Parent', tab3, 'Position', [0.1, 0.4, 0.8, 0.25]);
 plot(t, alpha*180/pi, 'LineWidth', 2);
 grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
 title('Angle of Attack');
+
+% Plot angular rate (omega)
+axes('Parent', tab3, 'Position', [0.1, 0.1, 0.8, 0.25]);
+plot(t, w(:,2)*180/pi, 'r-', 'LineWidth', 2);  % Pitch rate (y-axis rotation)
+grid on; xlabel('Time (s)'); ylabel('Rate (deg/s)');
+title('Pitch Rate (omega_y)');
+
 
 % Calculate and display key flight metrics
 tab4 = uitab(tabgp, 'Title', 'Flight Metrics');
@@ -143,6 +167,48 @@ annotation(tab4, 'textbox', [0.1 0.1 0.8 0.8], ...
     'EdgeColor', 'none', ...
     'VerticalAlignment', 'middle');
 
+% Tab 5: Forces
+tab5 = uitab(tabgp, 'Title', 'Forces');
+
+% Axial Forces (Fx)
+axes('Parent', tab5, 'Position', [0.05, 0.55, 0.4, 0.35]);
+plot(t, Fwind(:,1), 'b-', 'LineWidth', 2); hold on;
+plot(t, Fthrust(:,1), 'r-', 'LineWidth', 2);
+plot(t, Fnet(:,1), 'k-', 'LineWidth', 2);
+grid on; xlabel('Time (s)'); ylabel('Force (N)');
+title('Axial Forces (F_x)');
+legend('Wind', 'Thrust', 'Net', 'Location', 'best');
+
+% Normal Forces (Fz)
+axes('Parent', tab5, 'Position', [0.55, 0.55, 0.4, 0.35]);
+plot(t, Fwind(:,3), 'b-', 'LineWidth', 2); hold on;
+plot(t, Fthrust(:,3), 'r-', 'LineWidth', 2);
+plot(t, Fnet(:,3), 'k-', 'LineWidth', 2);
+grid on; xlabel('Time (s)'); ylabel('Force (N)');
+title('Normal Forces (F_z)');
+legend('Wind', 'Thrust', 'Net', 'Location', 'best');
+
+% Force Magnitudes
+axes('Parent', tab5, 'Position', [0.05, 0.1, 0.4, 0.35]);
+plot(t, sqrt(Fwind(:,1).^2 + Fwind(:,3).^2), 'b-', 'LineWidth', 2); hold on;
+plot(t, sqrt(Fthrust(:,1).^2 + Fthrust(:,3).^2), 'r-', 'LineWidth', 2);
+plot(t, sqrt(Fnet(:,1).^2 + Fnet(:,3).^2), 'k-', 'LineWidth', 2);
+grid on; xlabel('Time (s)'); ylabel('Force (N)');
+title('Force Magnitudes');
+legend('Wind', 'Thrust', 'Net', 'Location', 'best');
+
+% Tab 6: Moments
+tab6 = uitab(tabgp, 'Title', 'Moments');
+
+% Pitching Moments (My)
+axes('Parent', tab6, 'Position', [0.1, 0.55, 0.8, 0.35]);
+plot(t, Mwind(:,2), 'b-', 'LineWidth', 2); hold on;
+plot(t, Mthrust(:,2), 'r-', 'LineWidth', 2);
+plot(t, Mnet(:,2), 'k-', 'LineWidth', 2);
+grid on; xlabel('Time (s)'); ylabel('Moment (N·m)');
+title('Pitching Moments (M_y)');
+legend('Wind', 'Thrust', 'Net', 'Location', 'best');
+
 % Print metrics to command window as well
 fprintf('\n=== Key Flight Metrics ===\n');
 fprintf('%s\n', metrics_text{:});
@@ -151,3 +217,29 @@ fprintf('%s\n', metrics_text{:});
 trajectory_data = [t, Xe, theta];
 writematrix(trajectory_data, 'rocket_trajectory.csv');
 fprintf('Trajectory data saved to rocket_trajectory.csv\n');
+
+
+% Tab 7: Wind Velocity
+tab7 = uitab(tabgp, 'Title', 'Wind Velocity');
+
+% Extract wind velocity data
+windVelocity = out.windVelocity.Data;
+
+% Skip the first N frames as with other data
+windVelocity = windVelocity(N+1:end,:);
+
+% Plot wind velocity components
+axes('Parent', tab7, 'Position', [0.1, 0.55, 0.8, 0.35]);
+plot(t, windVelocity(:,1), 'b-', 'LineWidth', 2); hold on;
+plot(t, windVelocity(:,2), 'g-', 'LineWidth', 2);
+plot(t, windVelocity(:,3), 'r-', 'LineWidth', 2);
+grid on; xlabel('Time (s)'); ylabel('Velocity (m/s)');
+title('Wind Velocity Components');
+legend('V_x', 'V_y', 'V_z', 'Location', 'best');
+
+% Plot wind speed magnitude
+axes('Parent', tab7, 'Position', [0.1, 0.1, 0.8, 0.35]);
+windSpeed = sqrt(sum(windVelocity.^2, 2));
+plot(t, windSpeed, 'k-', 'LineWidth', 2);
+grid on; xlabel('Time (s)'); ylabel('Speed (m/s)');
+title('Wind Speed Magnitude');

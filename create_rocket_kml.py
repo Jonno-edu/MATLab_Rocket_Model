@@ -62,7 +62,7 @@ launch_point.description = f"""
 """
 
 # Define burn time (from initialize_parameters.m)
-BURN_TIME = 63 * 0.8  # seconds
+BURN_TIME = 63  # seconds
 
 # Split trajectory into burn and coast phases
 burn_mask = time <= BURN_TIME

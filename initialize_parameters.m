@@ -2,11 +2,14 @@
 clearvars -except STeVe*; clc; close all;
 
 %% System Parameters
-SimulationTime = 60*10;
+Sim.Timestep = 0.0001;
+Sim.Time = 18;
 
-Initial.Conditions.theta0 = deg2rad(45);                  % Initial pitch [deg]
+Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
 Initial.Conditions.V0 = 0;                       % Initial velocity [m/s]
-Initial.Conditions.h0 = -20000;                       % Initial altitude [m]
+Initial.Conditions.h0 = (-1)*0;                  % Initial altitude [m]
+
+Wind.shear = 1;                                 % Wind shear [m/s]
 
 Actuators.Nozzle.NaturalFreq = 1;                % wn_act [rad/s]
 Actuators.Nozzle.DampingRatio = 0.3;             % z_act
@@ -14,9 +17,9 @@ Actuators.Nozzle.MaxDeflection = deg2rad(30);    % maxdef_nozzle [rad]
 Actuators.Nozzle.RateLimit = deg2rad(1000);      % rate_lim_nozzle [rad/s]
 Actuators.Nozzle.MomentArm = 0.1;                % nozzle_moment_arm [m]
 
-Actuators.Engine.MaxThrust = (27.6*10^3)*0;          % max_thrust [N]
-Actuators.Engine.BurnTime = 63*0.8;                  % Burn time in seconds
-Actuators.Engine.DelayBeforeStart = 5;           % Delay time in seconds
+Actuators.Engine.MaxThrust = (27.6*10^3)*1;          % max_thrust [N]
+Actuators.Engine.BurnTime = 63*1;                  % Burn time in seconds
+%Actuators.Engine.DelayBeforeStart = 5;           % Delay time in seconds
 
 %% Import Mass Data (Verify Time Spacing First)
 if ~exist('STeVeV1NoFins', 'var')
@@ -89,16 +92,11 @@ RocketAeroPhysical.Reference_Length = RocketAeroPhysical.Diameter;
 rocket_length = max(STeVe_Contour.X) - min(STeVe_Contour.X);
 RocketAeroPhysical.Length = rocket_length;
 
-%Calculate pitch damping coefficient
-RocketAeroPhysical.Cmq = (-pi/4)*(RocketAeroPhysical.Length/RocketAeroPhysical.Diameter)^2;
-
 % Display physical parameters
 fprintf('\n--- Rocket Physical Parameters ---\n');
 fprintf('Diameter: %.3f m\n', RocketAeroPhysical.Diameter);
 fprintf('Reference area: %.6f m²\n', RocketAeroPhysical.Reference_Area);
 fprintf('Rocket length: %.3f m\n', RocketAeroPhysical.Length);
-fprintf('Rocket pitch damping coeff: %.3f\n', RocketAeroPhysical.Cmq);
-
 
 %% Process Aerodynamic Data for Lookup Tables
 % Get unique Mach and Alpha values
