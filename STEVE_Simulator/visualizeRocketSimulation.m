@@ -215,9 +215,10 @@ fprintf('%s\n', metrics_text{:});
 
 % Save trajectory data for Python visualization
 trajectory_data = [t, Xe, theta];
-writematrix(trajectory_data, 'rocket_trajectory.csv');
-fprintf('Trajectory data saved to rocket_trajectory.csv\n');
-
+% Create a table with column names for clearer CSV export
+trajectory_table = array2table(trajectory_data, 'VariableNames', {'t', 'X', 'Y', 'Z', 'theta'});
+writetable(trajectory_table, 'rocket_trajectory.csv');
+fprintf('Trajectory data saved to rocket_trajectory.csv with column headers\n');
 
 % Tab 7: Wind Velocity
 tab7 = uitab(tabgp, 'Title', 'Wind Velocity');
