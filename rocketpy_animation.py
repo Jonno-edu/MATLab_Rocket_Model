@@ -6,7 +6,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import math
 
 # Load the CSV trajectory data
-df = pd.read_csv('rocket_trajectory_60fps.csv')
+df = pd.read_csv('rocket_trajectory_100fps.csv')
 
 # Create a figure
 fig = plt.figure(figsize=(10, 8))
@@ -23,8 +23,10 @@ max_range = max(abs(df['X'].max()), abs(df['X'].min())) * 1.1
 if max_range < 1e-8:  # Very small values
     max_range = max_height * 0.1  # Set a reasonable default
     
-ax.set_xlim(-max_range, max_range)
-ax.set_ylim(-max_range, max_range)
+#ax.set_xlim(-max_range, max_range)
+#ax.set_ylim(-max_range, max_range)
+ax.set_xlim(-max_height/2, max_height/2)
+ax.set_ylim(-max_height/2, max_height/2)
 ax.set_zlim(0, max_height)
 ax.set_xlabel('X (m)')
 ax.set_ylabel('Y (m)')
@@ -56,7 +58,7 @@ def animate(i):
     x = df['X'][i]
     y = df['Y'][i]
     z = df['Z'][i]
-    theta = df['theta'][i]
+    theta = -df['theta'][i]
     
     # Update rocket position
     rocket_point.set_data([x], [y])
@@ -64,8 +66,8 @@ def animate(i):
     
     # Compute attitude vector endpoints
     # For a rocket pointing up with theta=90° (or π/2 rad)
-    dx = attitude_length * math.sin(theta - math.pi/2)
-    dz = attitude_length * math.cos(theta - math.pi/2)
+    dx = attitude_length * math.sin(theta + math.pi/2)
+    dz = attitude_length * math.cos(theta + math.pi/2)
     
     # Update orientation line
     orientation_line.set_data([x, x + dx], [y, y])
