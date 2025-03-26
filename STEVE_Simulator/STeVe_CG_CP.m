@@ -63,7 +63,7 @@ function STeVe_CG_CP()
     cp_values = zeros(size(mach_values));
     
     for i = 1:length(mach_values)
-        cp_values(i) = rocketLength - AeroData.Tables.CP(alpha_idx, i);
+        cp_values(i) = AeroData.Tables.CP(alpha_idx, i);
     end
     
     % Plot CP vs Mach
@@ -128,7 +128,7 @@ function STeVe_CG_CP()
         time_idx = max(1, min(time_idx, length(PrelookupData.Tables.COM_X)));
         
         % CP is in inches from nose, convert to meters 
-        cp_position = rocketLength - AeroData.Tables.CP(alpha_idx, mach_idx);
+        cp_position = AeroData.Tables.CP(alpha_idx, mach_idx);
         
         % CG is in meters from tail, convert to meters from nose
         cg_position = rocketLength - PrelookupData.Tables.COM_X(time_idx);
