@@ -24,8 +24,8 @@ Fnet = out.Fnet.Data;
 Mnet = out.Mnet.Data;
 
 % Skip the first N frames
-N = 2;  % Number of frames to skip
-t = t(N+1:end);
+N = 1;  % Number of frames to skip
+t = t(N+1:end) - Sim.Timestep * N;
 Ve = Ve(N+1:end,:);
 Xe = Xe(N+1:end,:);
 Vb = Vb(N+1:end,:);
@@ -117,23 +117,35 @@ tab3 = uitab(tabgp, 'Title', 'Attitude');
 w = out.w.Data;
 w = w(N+1:end,:);  % Skip first N frames like other variables
 
-% Plot theta (pitch)
-axes('Parent', tab3, 'Position', [0.1, 0.7, 0.8, 0.25]);
-plot(t, theta*180/pi, 'g-', 'LineWidth', 2);
-grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
-title('Pitch Angle (theta)');
+% Extract Nozzle Angle
+nozzleAngle = out.NozzleAngle.Data;
+nozzleAngle = nozzleAngle(N+1:end); 
 
-% Plot angle of attack
-axes('Parent', tab3, 'Position', [0.1, 0.4, 0.8, 0.25]);
-plot(t, alpha*180/pi, 'LineWidth', 2);
-grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
-title('Angle of Attack');
+plot_height = 0.25;
+vertical_gap = 0.07;
 
-% Plot angular rate (omega)
-axes('Parent', tab3, 'Position', [0.1, 0.1, 0.8, 0.25]);
-plot(t, w(:,2)*180/pi, 'r-', 'LineWidth', 2);  % Pitch rate (y-axis rotation)
+% Nozzle Angle (bottom plot)
+axes('Parent', tab3, 'Position', [0.1, 0.05, 0.8, plot_height]);
+plot(t, nozzleAngle*180/pi, 'b-', 'LineWidth', 2);
+grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
+title('Nozzle Deflection Angle');
+
+% Pitch Rate (middle plot)
+axes('Parent', tab3, 'Position', [0.1, 0.37, 0.8, plot_height]);
+plot(t, w(:,2)*180/pi, 'r-', 'LineWidth', 2);
 grid on; xlabel('Time (s)'); ylabel('Rate (deg/s)');
 title('Pitch Rate (omega_y)');
+
+% Pitch Angle and Angle of Attack (top plot)
+axes('Parent', tab3, 'Position', [0.1, 0.69, 0.8, plot_height]);
+plot(t, theta*180/pi, 'g-', 'LineWidth', 2);
+hold on;
+plot(t, alpha*180/pi, 'm--', 'LineWidth', 2);
+hold off;
+grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
+title('Pitch Angle (theta) and Angle of Attack');
+legend('Pitch Angle', 'Angle of Attack', 'Location', 'best');
+
 
 
 % Calculate and display key flight metrics
@@ -148,6 +160,13 @@ flight_time = t(end);
 [max_accel, max_accel_idx] = max(diff(sqrt(sum(Ve.^2, 2)))./diff(t));
 max_aoa = max(abs(alpha)) * 180/pi;
 
+burnout_time = Actuators.Engine.BurnTime;
+% Find the index of the time closest to burnout time
+[~, burnout_idx] = min(abs(t - burnout_time));
+burnout_altitude = Xe(burnout_idx,3);
+burnout_speed = sqrt(sum(Ve(burnout_idx,:).^2));
+burnout_horiz_dist = sqrt(Xe(burnout_idx,1)^2 + Xe(burnout_idx,2)^2);
+
 % Create text display for metrics
 metrics_text = {
     sprintf('Maximum Altitude: %.1f km', max_altitude/1000.0)
@@ -157,6 +176,10 @@ metrics_text = {
     sprintf('Total Flight Time: %.1f s', flight_time)
     sprintf('Maximum Acceleration: %.1f m/s²', max_accel)
     sprintf('Maximum Angle of Attack: %.1f degrees', max_aoa)
+    sprintf('Burnout Time: %.1f s', burnout_time)
+    sprintf('Burnout Altitude: %.1f m', burnout_altitude)
+    sprintf('Burnout Speed: %.1f m/s', burnout_speed)
+    sprintf('Burnout Horizontal Distance: %.1f m', burnout_horiz_dist)
 };
 
 % Display metrics in a clean text box
@@ -213,13 +236,6 @@ legend('Wind', 'Thrust', 'Net', 'Location', 'best');
 fprintf('\n=== Key Flight Metrics ===\n');
 fprintf('%s\n', metrics_text{:});
 
-% Save trajectory data for Python visualization
-trajectory_data = [t, Xe, theta];
-% Create a table with column names for clearer CSV export
-trajectory_table = array2table(trajectory_data, 'VariableNames', {'t', 'X', 'Y', 'Z', 'theta'});
-writetable(trajectory_table, 'rocket_trajectory.csv');
-fprintf('Trajectory data saved to rocket_trajectory.csv with column headers\n');
-
 % Tab 7: Wind Velocity
 tab7 = uitab(tabgp, 'Title', 'Wind Velocity');
 
@@ -244,3 +260,24 @@ windSpeed = sqrt(sum(windVelocity.^2, 2));
 plot(t, windSpeed, 'k-', 'LineWidth', 2);
 grid on; xlabel('Time (s)'); ylabel('Speed (m/s)');
 title('Wind Speed Magnitude');
+
+
+
+% Save trajectory data for Python visualization
+sim_fps = 1/Sim.Timestep;          % Original simulation FPS (10,000 fps)
+target_fps = 100;                   % Desired output FPS
+downsample_factor = round(sim_fps/target_fps); 
+
+% Downsample data for 100 FPS
+sampled_indices = 1:downsample_factor:length(t);
+trajectory_data = [t(sampled_indices), ...
+                   Xe(sampled_indices,:), ...  % Assuming Xe contains [X,Y,Z] columns
+                   theta(sampled_indices), ...
+                   nozzleAngle(sampled_indices)];
+
+% Create table with explicit headers
+trajectory_table = array2table(trajectory_data, ...
+    'VariableNames', {'t', 'X', 'Y', 'Z', 'theta', 'nozzleAngle'});
+
+% Write to CSV with proper formatting
+writetable(trajectory_table, 'rocket_trajectory_100fps.csv');
