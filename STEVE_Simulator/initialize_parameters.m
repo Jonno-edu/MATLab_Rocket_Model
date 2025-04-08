@@ -3,22 +3,22 @@ clearvars -except STeVe*; clc; close all;
 
 %% System Parameters
 Sim.Timestep = 0.0001;
-Sim.Time = 12;
+Sim.Time = 30;
 
-Initial.Conditions.theta0 = deg2rad(0);         % Initial pitch [deg]
+Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
 Initial.Conditions.V0 = 0;                       % Initial velocity [m/s]
-Initial.Conditions.h0 = (-1)*10000;                  % Initial altitude [m]
+Initial.Conditions.h0 = (-1)*0;                  % Initial altitude [m]
 
 Wind.shear = 1;                                 % Wind shear [m/s]
 
-Actuators.Nozzle.NaturalFreq = 1;                % wn_act [rad/s]
-Actuators.Nozzle.DampingRatio = 0.3;             % z_act
-Actuators.Nozzle.MaxDeflection = deg2rad(30);    % maxdef_nozzle [rad]
-Actuators.Nozzle.RateLimit = deg2rad(1000);      % rate_lim_nozzle [rad/s]
-Actuators.Nozzle.MomentArm = 0.1;                % nozzle_moment_arm [m]
+Actuators.Nozzle.NaturalFreq = 250;                % wn_act [rad/s]
+Actuators.Nozzle.DampingRatio = 0.707;             % z_act
+Actuators.Nozzle.MaxDeflection = deg2rad(4);    % maxdef_nozzle [rad]
+Actuators.Nozzle.RateLimit = deg2rad(150);      % rate_lim_nozzle [rad/s]
 
-Actuators.Engine.MaxThrust = (27.6*10^3)*0;          % max_thrust [N]
-Actuators.Engine.BurnTime = 63*1;                  % Burn time in seconds
+Actuators.Engine.MaxThrust = (27.6*10^3)*0.5;          % max_thrust [N]
+% Burn Time calculated in mass data section
+
 %Actuators.Engine.DelayBeforeStart = 5;           % Delay time in seconds
 
 %% Import Mass Data (Verify Time Spacing First)
@@ -33,6 +33,8 @@ if ~exist('STeVeV1NoFins', 'var')
     assert(all(abs(dt - 0.005) < 1e-10),...
         'Time vector not perfectly spaced! Max Δt error: %.2e', max(abs(dt - 0.005)));
 end
+
+
 
 %% Import Aerodynamic Coefficient Data
 if ~exist('STeVeV1NoFinsS2', 'var')
@@ -163,6 +165,8 @@ MassData.dIdt_Z = gradient(MassData.MOI_Z, timeStep);
 avg_dIdt = (MassData.dIdt_Y + MassData.dIdt_Z)/2;
 MassData.dIdt_Y = avg_dIdt;
 MassData.dIdt_Z = avg_dIdt;
+
+Actuators.Engine.BurnTime = double(MassData.Time(end));    % Burn time in seconds
 
 %% Create Inertia Tensor and Change-in-Inertia Tensor
 % Initialize 3D arrays to store tensors at each time point
