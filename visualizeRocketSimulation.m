@@ -270,14 +270,26 @@ downsample_factor = round(sim_fps/target_fps);
 
 % Downsample data for 100 FPS
 sampled_indices = 1:downsample_factor:length(t);
+
+% Interpolate CG data to match sampled time points
+sampled_times = t(sampled_indices);
+cg_data = interp1(MassData.Time, MassData.COM_X, sampled_times, 'linear', 'extrap');
+
+% Calculate CG offset from rocket origin (assuming rocket origin is at nose)
+% This will be used in Blender to set the pivot point
+cg_offset = cg_data - RocketAeroPhysical.Length/2;  % Offset from rocket center
+
+% Combine all data for export
 trajectory_data = [t(sampled_indices), ...
                    Xe(sampled_indices,:), ...  % Assuming Xe contains [X,Y,Z] columns
                    theta(sampled_indices), ...
-                   nozzleAngle(sampled_indices)];
+                   nozzleAngle(sampled_indices), ...
+                   cg_data, ...                % Absolute CG position
+                   cg_offset];                 % CG offset from rocket center
 
 % Create table with explicit headers
 trajectory_table = array2table(trajectory_data, ...
-    'VariableNames', {'t', 'X', 'Y', 'Z', 'theta', 'nozzleAngle'});
+    'VariableNames', {'t', 'X', 'Y', 'Z', 'theta', 'nozzleAngle', 'CG_X', 'CG_offset'});
 
 % Write to CSV with proper formatting
 writetable(trajectory_table, 'rocket_trajectory_100fps.csv');

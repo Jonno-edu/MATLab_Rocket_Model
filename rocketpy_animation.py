@@ -1,258 +1,382 @@
+# FULL REVISED CODE - Minimal GUI (Play/Pause Only) + Threading
+
+import sys
 import pyvista as pv
+import pyvistaqt as pvqt
 import pandas as pd
 import numpy as np
-import time
 import math
+import time
+import collections
+import threading # For pausing event
+
+# Import necessary PyQt components
+try:
+    # Try PyQt6 first
+    from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
+                                 QWidget, QPushButton, QLabel, QFrame, QSizePolicy) # Added QSizePolicy
+    from PyQt6.QtCore import QTimer, Qt, pyqtSignal, QObject, QThread
+    print("Using PyQt6")
+    pyqt_version = 6
+except ImportError:
+    try:
+        # Fallback to PyQt5
+        from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
+                                     QWidget, QPushButton, QLabel, QFrame, QSizePolicy) # Added QSizePolicy
+        from PyQt5.QtCore import QTimer, Qt, pyqtSignal, QObject, QThread
+        print("Using PyQt5")
+        pyqt_version = 5
+    except ImportError:
+        print("ERROR: PyQt5 or PyQt6 is required.")
+        sys.exit(1)
+
 
 # --- Allow Empty Meshes ---
 pv.global_theme.allow_empty_mesh = True
 
 # --- Configuration ---
-CSV_FILENAME = 'rocket_trajectory_100fps.csv' # Replace with your CSV file path
-ROCKET_HEIGHT = 5.0              # Visual height of the rocket in the plot
-ROCKET_RADIUS = 0.5              # Visual radius of the rocket
-NOZZLE_HEIGHT_FACTOR = 0.15      # How tall the nozzle is relative to rocket height
-NOZZLE_RADIUS_FACTOR = 0.7       # How wide the nozzle is relative to rocket radius
-THRUST_LENGTH_SCALE = 5.0        # Visual length of the thrust vector (scaled)
+CSV_FILENAME = 'rocket_trajectory_100fps.csv'
+ROCKET_HEIGHT = 5.0
+ROCKET_RADIUS = 0.5
+NOZZLE_HEIGHT_FACTOR = 0.15
+NOZZLE_RADIUS_FACTOR = 0.7
+THRUST_LENGTH_SCALE = 5.0
 THRUST_COLOR = 'orange'
 ROCKET_COLOR = 'silver'
-NOZZLE_COLOR = 'darkgrey'         # Color for the visual nozzle
+NOZZLE_COLOR = 'darkgrey'
 BACKGROUND_COLOR = 'black'
 TRAJECTORY_COLOR = 'cyan'
 GRID_COLOR = 'grey'
-ANIMATION_SPEED_FACTOR = 1.0     # 1.0 for real-time, >1.0 for faster, <1.0 for slower
+ANIMATION_SPEED_FACTOR = 1.0 # Keep for potential future use or internal logic
+
+# --- Performance Tuning ---
+ENABLE_PERFORMANCE_TIMING = True
+PRINT_TIMING_FREQUENCY = 30   # Print timing info roughly every second
+TARGET_DISPLAY_FPS = 30.0     # Target visual frame rate
+FRAME_DURATION_SEC = 1.0 / TARGET_DISPLAY_FPS # Time per frame
+USE_LIMITED_TRAIL = True
+TRAIL_DURATION_SECONDS = 5.0  # Keep trail short
+DISABLE_ANTI_ALIASING = True
+INTERPOLATE_FRAMES = True      # Keep interpolation
 
 # --- Grid, Earth and Camera Configuration ---
-GRID_BOUNDS = [-500, 500, -10, 10, -50, 2000] # Expanded Z range slightly downward for Earth
-# Visual radius for the Earth sphere (adjust for visual preference)
+GRID_BOUNDS = [-500, 500, -10, 10, -50, 2000]
 EARTH_VISUAL_RADIUS = 1500.0
-# Center the Earth so its top surface is at Z=0
 EARTH_CENTER = (0.0, 0.0, -EARTH_VISUAL_RADIUS)
-# Fixed offset for the camera from the rocket (when in follow mode)
-CAMERA_OFFSET = np.array([-40.0, -40.0, 15.0]) # Adjusted for potentially better view
+INITIAL_CAM_OFFSET = np.array([-40.0, -40.0, 15.0])
+# Reduced Geometry
+EARTH_THETA_RES = 30
+EARTH_PHI_RES = 30
+ROCKET_RESOLUTION = 16
+NOZZLE_RESOLUTION = 12
+# Camera Follow (Fixed)
+follow_camera_active = True
 
-# --- Global flag for camera mode ---
-follow_camera = True
-
-# --- Helper Functions ---
+# --- Helper Function ---
 def load_data(filename):
-    """Loads rocket trajectory data from a CSV file."""
     try:
-        df = pd.read_csv(filename)
-        required_cols = ['t', 'X', 'Y', 'Z', 'theta', 'nozzleAngle']
-        if not all(col in df.columns for col in required_cols):
-            raise ValueError(f"CSV must contain columns: {', '.join(required_cols)}")
+        df=pd.read_csv(filename);required_cols=['t','X','Y','Z','theta','nozzleAngle']
+        if not all(col in df.columns for col in required_cols):raise ValueError(f"CSV must contain columns: {', '.join(required_cols)}")
         print(f"Successfully loaded data from {filename}. Rows: {len(df)}")
-        t = df['t'].to_numpy()
-        x = df['X'].to_numpy()
-        y = df['Y'].to_numpy() if 'Y' in df.columns else np.zeros_like(t)
-        z = df['Z'].to_numpy()
-        theta = df['theta'].to_numpy()
-        nozzle_angle = df['nozzleAngle'].to_numpy()
-        return t, x, y, z, theta, nozzle_angle
-    except FileNotFoundError:
-        print(f"Error: CSV file not found at '{filename}'")
-        return None
-    except Exception as e:
-        print(f"Error loading CSV data: {e}")
-        return None
+        data={'t':df['t'].to_numpy(),'pos':np.stack((df['X'],df['Y'] if 'Y' in df.columns else np.zeros(len(df)),df['Z']),axis=-1),'theta':df['theta'].to_numpy(),'nozzle_angle':df['nozzleAngle'].to_numpy()}
+        if len(data['t'])>1:data['avg_dt']=np.median(np.diff(data['t']));data['total_duration']=data['t'][-1]-data['t'][0]
+        else:data['avg_dt']=0.01;data['total_duration']=0.0
+        if data['avg_dt']<=0:data['avg_dt']=0.01
+        return data
+    except FileNotFoundError:print(f"Error: CSV file not found at '{filename}'");return None
+    except Exception as e:print(f"Error loading CSV data: {e}");return None
 
-def toggle_camera_mode():
-    """Callback function to toggle camera follow mode."""
-    global follow_camera
-    follow_camera = not follow_camera
-    mode = "Follow" if follow_camera else "Free"
-    print(f"\nCamera Mode Toggled: {mode}")
+# --- Animation Worker Thread ---
+class AnimationWorker(QObject):
+    update_needed = pyqtSignal(float) # Emits target_time
+    # progress_update = pyqtSignal(int) # REMOVED
+    finished = pyqtSignal()
 
-# --- Main Animation Logic ---
-def animate_rocket(t, x, y, z, theta, nozzle_angle):
-    """Creates and runs the 3D rocket animation."""
-    global follow_camera # Allow modification of the global flag
-    follow_camera = True # Ensure follow mode starts enabled
+    # Removed speed_factor argument from init
+    def __init__(self, data, frame_duration_sec):
+        super().__init__()
+        self.data = data
+        self._speed_factor = ANIMATION_SPEED_FACTOR # Use global constant
+        self._frame_duration_sec = frame_duration_sec
+        self._running = False
+        self._paused = False
+        self.pause_event = threading.Event()
 
-    if t is None or len(t) == 0:
-        print("No data to animate.")
-        return
+    # Removed set_speed method
 
-    # --- Setup the PyVista Plotter ---
-    plotter = pv.Plotter(window_size=[1200, 900], lighting='three_lights')
-    plotter.set_background(BACKGROUND_COLOR)
+    def run(self):
+        self._running = True
+        self._paused = False
+        self.pause_event.set()
 
-    # --- Create Rocket Body Mesh ---
-    rocket_mesh = pv.Cone(center=(0, 0, ROCKET_HEIGHT / 2.0), direction=(0, 0, 1),
-                          height=ROCKET_HEIGHT, radius=ROCKET_RADIUS, resolution=20)
-    rocket_actor = plotter.add_mesh(rocket_mesh, color=ROCKET_COLOR, smooth_shading=True)
+        start_sim_time = self.data['t'][0]
+        end_sim_time = self.data['t'][-1]
+        # total_duration = self.data['total_duration'] # Not needed in worker anymore
+        # scrub_slider_max = 1000 # Not needed
 
-    # --- NEW: Create Nozzle Mesh ---
-    # Positioned at the base of the rocket, pointing down initially
-    nozzle_height = ROCKET_HEIGHT * NOZZLE_HEIGHT_FACTOR
-    nozzle_radius = ROCKET_RADIUS * NOZZLE_RADIUS_FACTOR
-    # Centered slightly below the rocket base origin (0,0,0) along its axis
-    nozzle_mesh = pv.Cylinder(center=(0, 0, -nozzle_height / 2.0), direction=(0, 0, 1),
-                              radius=nozzle_radius, height=nozzle_height, resolution=16, capping=True)
-    nozzle_actor = plotter.add_mesh(nozzle_mesh, color=NOZZLE_COLOR)
+        start_real_time = time.perf_counter()
+        frame_counter = 0
+        # progress_update_counter = 0 # REMOVED
+        # progress_update_interval = int(TARGET_DISPLAY_FPS / 5) # REMOVED
 
+        print("Animation worker started.")
+        while self._running:
+            self.pause_event.wait()
+            if not self._running: break
 
-    # --- Create Thrust Vector Mesh ---
-    # Arrow starts at origin, points down initially. Length controlled by scale.
-    thrust_mesh = pv.Arrow(start=(0, 0, 0), direction=(0, 0, -1), scale=THRUST_LENGTH_SCALE,
-                           tip_length=0.3, tip_radius=0.15, shaft_radius=0.05)
-    # Make thrust arrow start slightly below the nozzle visualization
-    initial_thrust_offset = np.array([0.0, 0.0, -nozzle_height])
-    thrust_actor = plotter.add_mesh(thrust_mesh, color=THRUST_COLOR)
+            frame_start_time = time.perf_counter()
+            elapsed_real_time = frame_start_time - start_real_time
+            target_time = start_sim_time + elapsed_real_time * self._speed_factor
 
+            if target_time >= end_sim_time:
+                target_time = end_sim_time
+                self._running = False
 
-    # --- Trajectory Path Setup ---
-    trajectory_points = []
-    trajectory_mesh = pv.PolyData()
-    trajectory_actor = plotter.add_mesh(trajectory_mesh, color=TRAJECTORY_COLOR, line_width=3)
+            self.update_needed.emit(target_time)
 
-    # --- NEW: Create Earth Mesh ---
-    try:
-        earth_texture = pv.load_globe_texture()
-        earth_mesh = pv.Sphere(radius=EARTH_VISUAL_RADIUS, center=EARTH_CENTER,
-                               theta_resolution=60, phi_resolution=60)
-        # Apply texture coordinates before adding mesh if needed (often automatic for Sphere)
-        # earth_mesh.texture_map_to_sphere(inplace=True) # Might be needed in older pyvista
-        plotter.add_mesh(earth_mesh, texture=earth_texture)
-        print("Added textured Earth sphere.")
-    except Exception as e:
-        print(f"Could not load Earth texture, adding simple sphere: {e}")
-        earth_mesh = pv.Sphere(radius=EARTH_VISUAL_RADIUS, center=EARTH_CENTER,
-                               theta_resolution=30, phi_resolution=30)
-        plotter.add_mesh(earth_mesh, color='deepskyblue')
+            # REMOVED Progress Update Logic
 
+            target_next_frame_real_time = start_real_time + (frame_counter + 1) * self._frame_duration_sec
+            current_real_time = time.perf_counter()
+            time_to_wait = target_next_frame_real_time - current_real_time
+            if time_to_wait > 0.001: time.sleep(time_to_wait)
 
-    # --- Add Coordinate Axes and Grid ---
-    plotter.show_grid(bounds=GRID_BOUNDS, color=GRID_COLOR, location='origin')
-    plotter.add_axes(line_width=5, labels_off=False)
-    plotter.camera.up = (0.0, 0.0, 1.0)
+            frame_counter += 1
 
-    # --- Initial Camera Position ---
-    initial_pos = np.array([x[0], y[0], z[0]])
-    plotter.camera.focal_point = initial_pos
-    plotter.camera.position = initial_pos + CAMERA_OFFSET
+        print("Animation worker finished.")
+        self.finished.emit()
 
-    # --- NEW: Register Key Press Callback ---
-    plotter.add_key_event('f', toggle_camera_mode) # Press 'f' to toggle follow/free cam
+    def pause(self):
+        self._paused = True
+        self.pause_event.clear(); print("Animation worker paused.")
 
-    print("\nStarting animation...")
-    print("Press 'f' in the window to toggle camera follow mode.")
-    print("Press 'q' in the window to quit.")
-    plotter.show(interactive_update=True, auto_close=False)
+    def resume(self):
+        self._paused = False
+        self.pause_event.set(); print("Animation worker resumed.")
 
-    start_real_time = time.time()
-
-    try:
-        for i in range(len(t)):
-            current_data_time = t[i]
-            pos = np.array([x[i], y[i], z[i]])
-            rocket_angle_rad = theta[i]     # Angle of rocket axis from Z+ (vertical)
-            nozzle_dev_rad = nozzle_angle[i] # Angle of nozzle FROM rocket axis
-
-            # --- Calculate Rocket Orientation (Rotation around World Y) ---
-            # pi/2 (90deg) = vertical. 0 = horizontal west (-X)
-            rocket_rot_y_rad = math.pi / 2.0 - rocket_angle_rad
-            rocket_rot_y_deg = math.degrees(rocket_rot_y_rad)
-
-            # --- Update Rocket Body Actor ---
-            rocket_actor.position = pos
-            rocket_actor.orientation = (0.0, rocket_rot_y_deg, 0.0) # Euler: Rx, Ry, Rz
-
-            # --- Calculate Nozzle Orientation (Rocket Orientation + Nozzle Deviation) ---
-            # Nozzle deviates by nozzle_dev_rad relative to the rocket body's axis.
-            # Assuming positive nozzle_dev_rad means nozzle tilts towards world +X when rocket vertical.
-            # This means rotation around the local Y axis by -nozzle_dev_rad.
-            nozzle_rot_y_deg = rocket_rot_y_deg - math.degrees(nozzle_dev_rad)
-
-            # --- Update Nozzle Actor ---
-            nozzle_actor.position = pos # Nozzle base moves with rocket base
-            nozzle_actor.orientation = (0.0, nozzle_rot_y_deg, 0.0)
-
-            # --- Calculate Thrust Vector Orientation ---
-            # Thrust points opposite to nozzle direction. Calculation is the same angle as nozzle.
-            thrust_rot_y_deg = nozzle_rot_y_deg
-
-            # --- Update Thrust Vector Actor ---
-            # Position the *start* of the arrow relative to the rocket base, considering nozzle offset
-            # We need to rotate the initial_thrust_offset by the nozzle orientation
-            # Easier: just place the arrow actor's origin at the rocket base for now.
-            # If more precision is needed, calculate rotated offset.
-            thrust_actor.position = pos # Thrust originates near rocket base
-            thrust_actor.orientation = (0.0, thrust_rot_y_deg, 0.0)
+    def stop(self):
+        self._running = False
+        self.pause_event.set(); print("Animation worker stop requested.")
 
 
-            # --- Update Trajectory Path ---
-            trajectory_points.append(pos)
-            if len(trajectory_points) >= 2:
-                points_array = np.array(trajectory_points)
-                trajectory_mesh.points = points_array
-                trajectory_mesh.lines = pv.lines_from_points(points_array).lines
-                trajectory_mesh.Modified() # Notify VTK of data change
+# --- Main Application Window ---
+class RocketAnimatorApp(QMainWindow):
 
-            # --- Update Camera (Only if in follow mode) ---
-            if follow_camera:
-                plotter.camera.focal_point = pos.tolist()
-                plotter.camera.position = (pos + CAMERA_OFFSET).tolist()
-            # Else: User's manual camera adjustments are preserved
+    def __init__(self, data):
+        super().__init__()
+        self.data = data
+        if self.data is None or len(self.data['t']) < 2: sys.exit(1)
 
-            # --- Update Plot and Timing ---
-            plotter.update() # Render the changes
+        self.num_data_points = len(self.data['t'])
+        self.total_duration = self.data['total_duration']
+        # self.is_playing state managed by worker/thread
+        # self.speed_factor = INITIAL_SPEED_FACTOR # Not needed here
+        # self.follow_camera_active = True # Using global
+        self.previous_pos = self.data['pos'][0]
+        self.current_display_time = self.data['t'][0]
+        self.frame_update_counter = 0
 
-            # Real-time pacing
-            if i < len(t) - 1:
-                data_time_diff = t[i+1] - current_data_time
-                if data_time_diff <= 0: data_time_diff = 0.001
+        # Trajectory storage
+        self.max_trail_points = None
+        if USE_LIMITED_TRAIL and self.data['avg_dt'] > 0:
+            self.max_trail_points = int(TRAIL_DURATION_SECONDS / self.data['avg_dt']) + 5
+            self.trajectory_points_deque = collections.deque(maxlen=self.max_trail_points)
+            print(f"Trajectory trail limited to approx {TRAIL_DURATION_SECONDS}s.")
+        else:
+            self.trajectory_points_list = []
 
-                current_real_time = time.time()
-                elapsed_real_time = current_real_time - start_real_time
-                target_sim_elapsed = (current_data_time - t[0]) / ANIMATION_SPEED_FACTOR
-                time_to_wait = target_sim_elapsed - elapsed_real_time
+        # Worker Thread Setup
+        self.thread = None
+        self.worker = None
 
-                if time_to_wait > 0:
-                    time.sleep(time_to_wait)
+        self.setWindowTitle("Rocket Animation"); self.setGeometry(100, 100, 1400, 950) # Reduced height slightly
+        central_widget = QWidget(); self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
 
-            # Check if window closed
-            if not plotter.iren or not plotter.iren.initialized:
-                print("Plotter window appears to be closed.")
-                break
+        # Plotter
+        self.plotter = pvqt.BackgroundPlotter(show=False, window_size=(1200,800))
+        self.plotter.set_background(BACKGROUND_COLOR); self.plotter.camera.up = (0.0, 0.0, 1.0)
+        if DISABLE_ANTI_ALIASING: self.plotter.disable_anti_aliasing(); print("Anti-aliasing disabled.")
+        plotter_frame = QFrame(); plotter_layout = QVBoxLayout(plotter_frame)
+        plotter_layout.addWidget(self.plotter.interactor); main_layout.addWidget(plotter_frame, 1)
 
-    except KeyboardInterrupt:
-        print("Animation stopped by user (Ctrl+C).")
-    except Exception as e:
-        print(f"An error occurred during animation: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        print("Animation finished.")
-        if plotter and plotter.render_window:
-             plotter.close()
+        # Controls - Simplified
+        controls_widget = QWidget()
+        # Set fixed height for controls area
+        controls_widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        controls_layout = QHBoxLayout(controls_widget) # Use QHBoxLayout now
+        main_layout.addWidget(controls_widget)
 
+        # Play/Pause Button
+        self.play_pause_button = QPushButton("Play");
+        self.play_pause_button.setCheckable(True) # Use checkable state
+        self.play_pause_button.clicked.connect(self.toggle_play_pause)
+        controls_layout.addWidget(self.play_pause_button)
+
+        # Time Label (optional, but useful)
+        self.time_label = QLabel(f"Time: 0.00 / {self.total_duration:.2f} s")
+        controls_layout.addWidget(self.time_label)
+        controls_layout.addStretch() # Push button/label left
+
+        # Setup Initial Scene
+        self.setup_actors(); self.update_scene(self.data['t'][0])
+
+        print("\nAnimator Ready."); print(f"- Target Display FPS: {TARGET_DISPLAY_FPS}")
+
+
+    def setup_actors(self):
+        """Create and add all static and dynamic actors to the plotter."""
+        # (Same actor setup as before)
+        rocket_mesh=pv.Cone(center=(0,0,ROCKET_HEIGHT/2.),direction=(0,0,1),height=ROCKET_HEIGHT,radius=ROCKET_RADIUS,resolution=ROCKET_RESOLUTION)
+        self.rocket_actor=self.plotter.add_mesh(rocket_mesh,color=ROCKET_COLOR,smooth_shading=True)
+        nozzle_h=ROCKET_HEIGHT*NOZZLE_HEIGHT_FACTOR;nozzle_r=ROCKET_RADIUS*NOZZLE_RADIUS_FACTOR
+        nozzle_mesh=pv.Cylinder(center=(0,0,-nozzle_h/2.),direction=(0,0,1),radius=nozzle_r,height=nozzle_h,resolution=NOZZLE_RESOLUTION,capping=True)
+        self.nozzle_actor=self.plotter.add_mesh(nozzle_mesh,color=NOZZLE_COLOR)
+        thrust_mesh=pv.Arrow(start=(0,0,0),direction=(0,0,-1),scale=THRUST_LENGTH_SCALE,tip_length=0.3,tip_radius=0.15,shaft_radius=0.05)
+        self.thrust_actor=self.plotter.add_mesh(thrust_mesh,color=THRUST_COLOR)
+        self.trajectory_mesh=pv.PolyData();self.trajectory_actor=self.plotter.add_mesh(self.trajectory_mesh,color=TRAJECTORY_COLOR,line_width=3)
+        try:# Earth
+            if hasattr(pv,'load_globe_texture'):earth_texture=pv.load_globe_texture();earth_mesh=pv.Sphere(radius=EARTH_VISUAL_RADIUS,center=EARTH_CENTER,theta_resolution=EARTH_THETA_RES,phi_resolution=EARTH_PHI_RES);self.plotter.add_mesh(earth_mesh,texture=earth_texture);print("Added textured Earth sphere.")
+            else:raise AttributeError("load_globe_texture not found")
+        except Exception as e:print(f"Could not load Earth texture: {e}");earth_mesh=pv.Sphere(radius=EARTH_VISUAL_RADIUS,center=EARTH_CENTER,theta_resolution=EARTH_THETA_RES,phi_resolution=EARTH_PHI_RES);self.plotter.add_mesh(earth_mesh,color='deepskyblue')
+        self.plotter.show_grid(bounds=GRID_BOUNDS,color=GRID_COLOR,location='origin');self.plotter.add_axes(line_width=5,labels_off=False)
+        initial_pos=self.data['pos'][0];self.plotter.camera.focal_point=initial_pos;self.plotter.camera.position=initial_pos+INITIAL_CAM_OFFSET
+        self.previous_pos=initial_pos.copy()
+
+    # SLOT connected to worker's update_needed signal
+    def update_scene(self, target_time):
+        """Updates actor positions and orientations for a given target time."""
+        if ENABLE_PERFORMANCE_TIMING: t_start_update = time.perf_counter()
+
+        target_time=np.clip(target_time,self.data['t'][0],self.data['t'][-1]);
+        self.current_display_time=target_time # Update internal time tracking
+
+        pos=np.zeros(3);rocket_angle_rad=0.;nozzle_dev_rad=0.
+
+        # Interpolation
+        idx1=np.searchsorted(self.data['t'],target_time,side='right')
+        idx0=max(0,idx1-1);idx1=min(self.num_data_points-1,idx1)
+        current_data_index = idx0
+
+        if idx0==idx1:pos=self.data['pos'][idx0];rocket_angle_rad=self.data['theta'][idx0];nozzle_dev_rad=self.data['nozzle_angle'][idx0]
+        else:
+            t0,t1=self.data['t'][idx0],self.data['t'][idx1];pos0,pos1=self.data['pos'][idx0],self.data['pos'][idx1]
+            theta0,theta1=self.data['theta'][idx0],self.data['theta'][idx1];nozzle0,nozzle1=self.data['nozzle_angle'][idx0],self.data['nozzle_angle'][idx1]
+            frac=(target_time-t0)/(t1-t0)if(t1-t0)>1e-9 else 0.;frac=np.clip(frac,0.,1.)
+            pos=pos0+frac*(pos1-pos0);rocket_angle_rad=theta0+frac*(theta1-theta0);nozzle_dev_rad=nozzle0+frac*(nozzle1-nozzle0)
+
+        # Orientations
+        rocket_rot_y_rad=math.pi/2.-rocket_angle_rad;rocket_rot_y_deg=math.degrees(rocket_rot_y_rad)
+        nozzle_rot_y_deg=rocket_rot_y_deg-math.degrees(nozzle_dev_rad);thrust_rot_y_deg=nozzle_rot_y_deg
+
+        # Update Actors
+        self.rocket_actor.position=pos;self.rocket_actor.orientation=(0.,rocket_rot_y_deg,0.)
+        self.nozzle_actor.position=pos;self.nozzle_actor.orientation=(0.,nozzle_rot_y_deg,0.)
+        self.thrust_actor.position=pos;self.thrust_actor.orientation=(0.,thrust_rot_y_deg,0.)
+
+        # Update Trajectory Storage & Mesh (Every Frame)
+        current_traj_points=None
+        if self.max_trail_points is not None: # Deque
+            last_deque_index=-1
+            if self.trajectory_points_deque:
+                 try:
+                    last_pt_in_deque=self.trajectory_points_deque[-1];matches=np.where(np.all(self.data['pos']==last_pt_in_deque,axis=1))[0]
+                    if len(matches)>0:last_deque_index=matches[-1]
+                 except IndexError:pass
+            if current_data_index>last_deque_index: self.trajectory_points_deque.append(self.data['pos'][current_data_index])
+            current_traj_points=list(self.trajectory_points_deque)
+        else: # Unlimited List
+             if current_data_index>=len(self.trajectory_points_list): self.trajectory_points_list.append(self.data['pos'][current_data_index])
+             current_traj_points=self.trajectory_points_list
+
+        # Update PolyData
+        if current_traj_points and len(current_traj_points)>=2:
+            points_array=np.array(current_traj_points);self.trajectory_mesh.points=points_array
+            try:self.trajectory_mesh.lines=pv.lines_from_points(points_array).lines
+            except ValueError:self.trajectory_mesh.lines=np.array([],dtype=int)
+            self.trajectory_mesh.Modified()
+        else:
+             self.trajectory_mesh.points=np.empty((0,3),dtype=float);self.trajectory_mesh.lines=np.array([],dtype=int)
+             self.trajectory_mesh.Modified()
+
+        # Update Camera
+        if follow_camera_active: # Use fixed global setting
+            self.plotter.camera.focal_point=pos.tolist();delta_pos=pos-self.previous_pos
+            current_cam_pos=np.array(self.plotter.camera.position);new_cam_pos=current_cam_pos+delta_pos
+            self.plotter.camera.position=new_cam_pos.tolist()
+
+        # Update Time Label Only
+        self.time_label.setText(f"Time: {target_time:.2f} / {self.total_duration:.2f} s")
+        self.previous_pos=pos.copy()
+
+        # Performance Timing
+        if ENABLE_PERFORMANCE_TIMING:
+            t_end_update=time.perf_counter();update_duration_ms=(t_end_update-t_start_update)*1000
+            self.frame_update_counter+=1
+            if self.frame_update_counter%PRINT_TIMING_FREQUENCY==0:print(f"Time {target_time:.2f}s: update_scene took {update_duration_ms:.2f} ms")
+
+    # --- GUI Interaction Slots ---
+    def toggle_play_pause(self):
+        if self.play_pause_button.isChecked(): # User wants to play
+            if self.thread is None or not self.thread.isRunning():
+                 self.start_worker() # Start new thread
+            else:
+                 self.worker.resume() # Resume existing worker
+            self.play_pause_button.setText("Pause")
+        else: # User wants to pause
+            if self.worker:
+                 self.worker.pause()
+            self.play_pause_button.setText("Play")
+
+    def start_worker(self):
+        print("Starting animation worker thread...")
+        self.thread = QThread()
+        # Pass frame duration, not speed factor (worker uses global ANIMATION_SPEED_FACTOR)
+        self.worker = AnimationWorker(self.data, FRAME_DURATION_SEC)
+        self.worker.moveToThread(self.thread)
+
+        # Connect signals (only update_needed and finished now)
+        self.worker.update_needed.connect(self.update_scene)
+        # self.worker.progress_update.connect(self.update_slider_position) # REMOVED
+        self.worker.finished.connect(self.on_worker_finished)
+        self.thread.started.connect(self.worker.run)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+
+        # Restart logic
+        if self.current_display_time >= self.data['t'][-1]: self.current_display_time = self.data['t'][0]
+
+        self.thread.start()
+
+    def on_worker_finished(self):
+        print("Worker finished signal received.")
+        self.play_pause_button.setChecked(False) # Ensure button is back to 'Play' state
+        self.play_pause_button.setText("Play")
+        # self.scrub_slider.setEnabled(True) # No scrub slider anymore
+        self.thread = None; self.worker = None # Clear references
+
+    # REMOVED update_slider_position, scrub handlers, set_speed, toggle_camera_mode
+
+    def closeEvent(self, event):
+        print("Closing animator...")
+        if self.worker: self.worker.stop()
+        if self.thread:
+            self.thread.quit()
+            if not self.thread.wait(1000): print("Warning: Worker thread did not exit.")
+        if hasattr(self,'plotter')and self.plotter:self.plotter.close()
+        event.accept()
 
 # --- Script Entry Point ---
-if __name__ == "__main__":
-    # (Dummy data creation code remains the same - maybe add nozzle angle variation)
+if __name__=="__main__":
     import os
     if not os.path.exists(CSV_FILENAME):
         print(f"Creating dummy data file: {CSV_FILENAME}")
-        dummy_data = """t,X,Y,Z,theta,nozzleAngle
-0,0,0,0,1.57079,0
-1,0.1,0,10,1.56,0.02
-2,0.5,0,40,1.53,-0.03
-3,1.5,0,90,1.48,0.01
-4,3.0,0,160,1.42,0.00
-5,5.0,0,250,1.35,-0.02
-6,7.5,0,360,1.28,0.03
-7,10.0,0,490,1.20,0.00
-8,12.5,0,640,1.10,-0.01
-9,15.0,0,810,1.00,0.02
-10,17.5,0,1000,0.95,-0.01
-11,20.0,0,1210,0.90,0.00
-12,22.5,0,1440,0.85,0.01
-"""
-        with open(CSV_FILENAME, 'w') as f:
-            f.write(dummy_data)
+        # Dummy data generation...
+        time_points=np.linspace(0,12,300);x_points=np.interp(time_points,[0,12],[0,22.5]);y_points=np.zeros_like(time_points);z_points=np.interp(time_points,[0,12],[0,1440]);theta_points=np.interp(time_points,[0,12],[1.57079,0.85]);nozzle_points=0.03*np.sin(time_points*2*np.pi/3)
+        with open(CSV_FILENAME,'w') as f:f.write("t,X,Y,Z,theta,nozzleAngle\n");[f.write(f"{t:.4f},{x:.4f},{y:.4f},{z:.4f},{th:.5f},{nz:.5f}\n")for t,x,y,z,th,nz in zip(time_points,x_points,y_points,z_points,theta_points,nozzle_points)]
 
-    data = load_data(CSV_FILENAME)
-    if data:
-        animate_rocket(*data)
+    rocket_data=load_data(CSV_FILENAME)
+    app=QApplication(sys.argv);window=RocketAnimatorApp(rocket_data);window.show()
+    if pyqt_version==6:sys.exit(app.exec())
+    else:sys.exit(app.exec_())
