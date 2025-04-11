@@ -1,6 +1,8 @@
 %clc; close all;
+clear; clc; close all;
 
 initialize_parameters;
+ControlSystemDesign;
 
 mdl = "STEVE_Simulation";
 out = sim(mdl);
@@ -263,33 +265,54 @@ title('Wind Speed Magnitude');
 
 
 
+% --- START: Updated Data Export Section ---
+
 % Save trajectory data for Python visualization
-sim_fps = 1/Sim.Timestep;          % Original simulation FPS (10,000 fps)
+sim_fps = 1/Sim.Timestep;          % Original simulation FPS
 target_fps = 100;                   % Desired output FPS
-downsample_factor = round(sim_fps/target_fps); 
+downsample_factor = round(sim_fps/target_fps);
 
 % Downsample data for 100 FPS
 sampled_indices = 1:downsample_factor:length(t);
 
-% Interpolate CG data to match sampled time points
+% Interpolate CG data (Assuming COM_X is CG distance from AFT end)
 sampled_times = t(sampled_indices);
-cg_data = interp1(MassData.Time, MassData.COM_X, sampled_times, 'linear', 'extrap');
+cg_from_aft_m = interp1(MassData.Time, MassData.COM_X, sampled_times, 'linear', 'extrap');
 
-% Calculate CG offset from rocket origin (assuming rocket origin is at nose)
-% This will be used in Blender to set the pivot point
-cg_offset = cg_data - RocketAeroPhysical.Length/2;  % Offset from rocket center
+% Calculate CG position relative to the NOSE in body frame
+% Assumes body X-axis points forward from the nose.
+rocket_length = RocketAeroPhysical.Length; % Ensure this variable exists
+cg_body_x_m = rocket_length - cg_from_aft_m; % Distance from nose along body X
 
-% Combine all data for export
+% Assuming CG offset is only along the body X-axis in this 3DOF sim
+cg_body_y_m = zeros(size(cg_body_x_m));
+cg_body_z_m = zeros(size(cg_body_x_m));
+
+% Get sampled position, pitch, and nozzle angle
+pos_xyz_m = Xe(sampled_indices,:);         % World frame [X, Y, Z_up]
+pitch_rad = theta(sampled_indices);        % Pitch angle (radians)
+nozzle_angle_rad = nozzleAngle(sampled_indices); % Nozzle angle (radians)
+
+% Combine data for export (Focus on data needed for Blender animation)
 trajectory_data = [t(sampled_indices), ...
-                   Xe(sampled_indices,:), ...  % Assuming Xe contains [X,Y,Z] columns
-                   theta(sampled_indices), ...
-                   nozzleAngle(sampled_indices), ...
-                   cg_data, ...                % Absolute CG position
-                   cg_offset];                 % CG offset from rocket center
+                   pos_xyz_m, ...             % World Pos X, Y, Z
+                   pitch_rad, ...             % Body Pitch
+                   cg_body_x_m, ...           % CG X relative to nose
+                   cg_body_y_m, ...           % CG Y relative to nose
+                   cg_body_z_m, ...           % CG Z relative to nose
+                   nozzle_angle_rad];         % Nozzle Angle
 
-% Create table with explicit headers
+% Create table with explicit headers for Blender script
 trajectory_table = array2table(trajectory_data, ...
-    'VariableNames', {'t', 'X', 'Y', 'Z', 'theta', 'nozzleAngle', 'CG_X', 'CG_offset'});
+    'VariableNames', {'time_s', 'pos_x_m', 'pos_y_m', 'pos_z_m', ...
+                     'pitch_rad', ...
+                     'cg_body_x_m', 'cg_body_y_m', 'cg_body_z_m', ...
+                     'nozzle_angle_rad'});
 
-% Write to CSV with proper formatting
+% Write to CSV
 writetable(trajectory_table, 'rocket_trajectory_100fps.csv');
+fprintf('\nExported trajectory data to rocket_trajectory_100fps.csv\n');
+
+% --- END: Updated Data Export Section ---
+
+

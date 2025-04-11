@@ -3,7 +3,7 @@ clearvars -except STeVe*; clc; close all;
 
 %% System Parameters
 Sim.Timestep = 0.0001;
-Sim.Time = 30;
+Sim.Time = 60;
 
 Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
 Initial.Conditions.V0 = 0;                       % Initial velocity [m/s]
@@ -11,7 +11,7 @@ Initial.Conditions.h0 = (-1)*0;                  % Initial altitude [m]
 
 Wind.shear = 1;                                 % Wind shear [m/s]
 
-Actuators.Nozzle.NaturalFreq = 250;                % wn_act [rad/s]
+Actuators.Nozzle.NaturalFreq = 850;                % wn_act [rad/s]
 Actuators.Nozzle.DampingRatio = 0.707;             % z_act
 Actuators.Nozzle.MaxDeflection = deg2rad(4);    % maxdef_nozzle [rad]
 Actuators.Nozzle.RateLimit = deg2rad(150);      % rate_lim_nozzle [rad/s]
