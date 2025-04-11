@@ -63,9 +63,9 @@ try:
                 try:
                     # Read data using column indices
                     time_s = float(row[col_t])
-                    sim_pos_x = float(row[col_px])/1
+                    sim_pos_x = float(row[col_px])
                     sim_pos_y = float(row[col_py])
-                    sim_pos_z = float(row[col_pz])/1
+                    sim_pos_z = float(row[col_pz]) + ROCKET_LENGTH_M
                     sim_pitch_rad = float(row[col_pitch])
                     cg_from_nose_x = float(row[col_cg_bx])
                     cg_from_nose_y = float(row[col_cg_by])
@@ -94,9 +94,13 @@ try:
                     rocket.keyframe_insert(data_path="rotation_euler", frame=frame)
 
                     # 4. Set Nozzle LOCAL Rotation (Relative to RocketBody parent)
+                    nozzle.location = Vector((sim_pos_x - (ROCKET_LENGTH_M - cg_from_nose_x) * math.cos(sim_pitch_rad), sim_pos_y, sim_pos_z - (ROCKET_LENGTH_M - cg_from_nose_x) * math.sin(sim_pitch_rad)))
+                    nozzle.keyframe_insert(data_path="location", frame=frame)
+
                     # Nozzle pivots around its local Y-axis as confirmed
+                    nozzle_global_angle_rad = sim_nozzle_angle_rad * 10 + blender_pitch_rad
                     nozzle.rotation_mode = 'XYZ'
-                    nozzle.rotation_euler = (0, -sim_nozzle_angle_rad*10, 0)
+                    nozzle.rotation_euler = (0, nozzle_global_angle_rad, 0)
                     nozzle.keyframe_insert(data_path="rotation_euler", frame=frame)
 
                     # Debug info (every 100th frame)
