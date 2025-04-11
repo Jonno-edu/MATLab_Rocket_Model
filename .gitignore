@@ -39,3 +39,5 @@ codegen/
 STEVE_Simulator/STEVE_Simulation_faultInfo.xml
 
 STEVE_Simulator/RocketSimData.mat
+STEVE_Simulator/blender_animation/RocketAnimation.blend1
+STEVE_Simulator/rocket_trajectory_100fps.csv
