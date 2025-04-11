@@ -11,9 +11,19 @@ csv_file_path = "/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulat
 rocket_name = "RocketBody"  # Base pose: Points LOCAL Z up (nose direction)
 cg_name = "CG_Empty"        # Follows world trajectory of CG
 nozzle_name = "Nozzle"      # Origin at pivot point, PARENTED TO ROCKETBODY
+trajectory_name = "RocketTrajectory"  # Name for the static trajectory curve
+
+# Trajectory visualization settings
+CREATE_TRAJECTORY_CURVE = True       # Set to True to create static trajectory spline
+TRAJECTORY_COLOR = (1.0, 1.0, 0.0, 1.0)  # Bright light yellow (R,G,B,A)
+# Or using hex conversion:
+# HEX: #FFFF33 converted to RGBA (1.0, 1.0, 0.2, 1.0)
+TRAJECTORY_THICKNESS = 0.1          # Thickness of the trajectory curve
 
 # Rocket properties
 ROCKET_LENGTH_M = 9.5418    # Total rocket length in meters
+nozzle_angle_multiplier = 1.0  # Multiplier for nozzle angle (if needed)
+# --- END USER SETTINGS ---
 
 # Get the objects
 try:
@@ -34,7 +44,44 @@ clear_animation(rocket)
 clear_animation(cg)
 clear_animation(nozzle)
 
-print(f"Reading CSV and applying animation for {ROCKET_LENGTH_M}m rocket...")
+# Function to create a trajectory curve from points
+def create_trajectory_curve(points, name="RocketTrajectory"):
+    # Remove existing trajectory curve if it exists
+    if name in bpy.data.objects:
+        bpy.data.objects.remove(bpy.data.objects[name])
+    
+    # Create the curve data
+    curve_data = bpy.data.curves.new(name=name, type='CURVE')
+    curve_data.dimensions = '3D'
+    curve_data.resolution_u = 2  # Smoothness of curve
+    
+    # Create the trajectory spline
+    spline = curve_data.splines.new('NURBS')
+    spline.points.add(len(points)-1)  # Add the required number of points
+    
+    # Set the coordinates of each point
+    for i, coord in enumerate(points):
+        spline.points[i].co = (coord[0], coord[1], coord[2], 1.0)  # w=1.0 for NURBS
+    
+    # Create the object with the curve data
+    curve_obj = bpy.data.objects.new(name, curve_data)
+    
+    # Set curve properties
+    curve_data.bevel_depth = TRAJECTORY_THICKNESS  # Thickness
+    curve_data.use_fill_caps = True
+    
+    # Add material to the curve
+    mat = bpy.data.materials.new(f"{name}_material")
+    mat.diffuse_color = TRAJECTORY_COLOR  # Cyan color
+    curve_obj.data.materials.append(mat)
+    
+    # Link the curve to the scene
+    bpy.context.collection.objects.link(curve_obj)
+    print(f"Created trajectory curve with {len(points)} points")
+    
+    return curve_obj
+
+print(f"Reading CSV for {ROCKET_LENGTH_M}m rocket simulation...")
 try:
     with open(csv_file_path, 'r') as file:
         csv_reader = csv.reader(file)
@@ -58,8 +105,38 @@ try:
             header = None
 
         if header:
-            frame = 1
+            # First, read all trajectory points
+            trajectory_points = []
+            all_rows = []
+            
+            # Make a first pass through the file to collect trajectory points
             for i, row in enumerate(csv_reader):
+                try:
+                    # Read position data
+                    time_s = float(row[col_t])
+                    sim_pos_x = float(row[col_px])
+                    sim_pos_y = float(row[col_py])
+                    sim_pos_z = float(row[col_pz]) + ROCKET_LENGTH_M
+                    
+                    # Store trajectory point
+                    trajectory_points.append((sim_pos_x, sim_pos_y, sim_pos_z))
+                    
+                    # Store entire row for later animation
+                    all_rows.append(row)
+                    
+                except (ValueError, IndexError) as e:
+                    print(f"Error reading trajectory point in row {i+2}: {e}. Skipping.")
+                    continue
+            
+            # Create trajectory curve if enabled
+            if CREATE_TRAJECTORY_CURVE and trajectory_points:
+                print(f"Creating trajectory curve with {len(trajectory_points)} points...")
+                trajectory_curve = create_trajectory_curve(trajectory_points, trajectory_name)
+            
+            # Now process animation frames
+            print("Applying animation keyframes...")
+            frame = 1
+            for i, row in enumerate(all_rows):
                 try:
                     # Read data using column indices
                     time_s = float(row[col_t])
@@ -98,7 +175,7 @@ try:
                     nozzle.keyframe_insert(data_path="location", frame=frame)
 
                     # Nozzle pivots around its local Y-axis as confirmed
-                    nozzle_global_angle_rad = sim_nozzle_angle_rad * 10 + blender_pitch_rad
+                    nozzle_global_angle_rad = sim_nozzle_angle_rad * nozzle_angle_multiplier + blender_pitch_rad
                     nozzle.rotation_mode = 'XYZ'
                     nozzle.rotation_euler = (0, nozzle_global_angle_rad, 0)
                     nozzle.keyframe_insert(data_path="rotation_euler", frame=frame)
