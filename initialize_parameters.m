@@ -9,7 +9,7 @@ Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
 Initial.Conditions.V0 = 0;                       % Initial velocity [m/s]
 Initial.Conditions.h0 = (-1)*0;                  % Initial altitude [m]
 
-Wind.shear = 1;                                 % Wind shear [m/s]
+Wind.shear = 0.1;                                 % Wind shear [m/s]
 
 Actuators.Nozzle.NaturalFreq = 850;                % wn_act [rad/s]
 Actuators.Nozzle.DampingRatio = 0.707;             % z_act
