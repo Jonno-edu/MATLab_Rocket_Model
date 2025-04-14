@@ -2,7 +2,38 @@
 
 A comprehensive MATLAB-based rocket simulation environment for modeling, simulating, and visualizing rocket trajectories with multi-platform visualization capabilities.
 
-![STEVE Rocket](steve.png)
+![STEVE Rocket](docs/images/steve.png)
+
+## Project Structure
+
+The project is organized into the following folders:
+
+```
+STEVE_Simulator/
+├── src/                          # Source code
+│   ├── models/                   # Main simulation models
+│   ├── scripts/                  # MATLAB scripts
+│   ├── visualization/            # Visualization scripts
+│   │   ├── matlab/               # MATLAB visualization
+│   │   ├── python/               # Python visualization
+│   │   └── blender_animation/    # Blender animation
+│   └── util/                     # Utility functions
+│
+├── data/                         # Data files
+│   ├── parameters/               # Configuration data
+│   ├── lookup/                   # Lookup tables
+│   ├── results/                  # Simulation results
+│   └── aero/                     # Aerodynamics data
+│
+├── docs/                         # Documentation
+│   └── images/                   # Documentation images
+│
+├── output/                       # Output files
+│   ├── animations/               # Generated animations
+│   └── kml/                      # Generated KML files
+│
+└── rocket_env/                   # Python environment
+```
 
 ## Overview
 
@@ -50,9 +81,13 @@ The STEVE Rocket Model Simulation is a high-fidelity simulation framework design
 
 ### Basic Simulation
 
-1. Run `initialize_parameters.m` to set up simulation parameters
-2. Run `ControlSystemDesign.m` to configure the control system
-3. Execute `visualizeRocketSimulation.m` to run the simulation and display results
+1. Simply run `src/scripts/runRocketSimulation.m` to execute the complete simulation workflow:
+   - This script initializes parameters, configures the control system, runs the simulation model, visualizes results, and exports data for external visualization tools
+   
+   Alternatively, you can run each step individually:
+   - Run `src/scripts/initialize_parameters.m` to set up simulation parameters
+   - Run `src/scripts/ControlSystemDesign.m` to configure the control system
+   - Run `src/models/STEVE_Simulation.slx` to execute the simulation
 
 ### Extended Visualization
 
@@ -60,43 +95,21 @@ The STEVE Rocket Model Simulation is a high-fidelity simulation framework design
 
 The simulation includes a Python-based real-time 3D animation system:
 
-1. Run `visualizeRocketSimulation.m` to generate trajectory data
-2. Execute `rocketpy_animation.py` to view the 3D animation
+1. Run `src/visualization/matlab/visualizeRocketSimulation.m` to generate trajectory data
+2. Execute `src/visualization/python/rocketpy_animation.py` to view the 3D animation
 
 #### Blender Animation
 
 For high-quality rendering:
 
 1. Install Blender (https://www.blender.org/)
-2. Open the Blender file `blender_animation/RocketAnimation.blend`
-3. Run the `blender_animation/blender_animation.py` script within Blender
+2. Open the Blender file `src/visualization/blender_animation/RocketAnimation.blend`
+3. Run the `src/visualization/blender_animation/blender_animation.py` script within Blender
 
 #### Google Earth Visualization
 
-1. Run `create_rocket_kml.py` to convert trajectory data to KML format
-2. Open the generated `rocket_trajectory_static.kml` file in Google Earth
-
-## Analysis Capabilities
-
-The simulation provides detailed analysis of:
-
-- Full trajectory path in 3D space
-- Velocity and acceleration profiles
-- Attitude dynamics and stability
-- Aerodynamic forces and moments
-- Control system performance
-- Mass property changes during flight
-
-## Files and Components
-
-- `STEVE_Simulation.slx`: Main Simulink model
-- `initialize_parameters.m`: Configuration of rocket physical parameters
-- `ControlSystemDesign.m`: Control system design and tuning
-- `visualizeRocketSimulation.m`: Simulation execution and MATLAB visualization
-- `STeVe_CG_CP.m`: Center of gravity and center of pressure analysis
-- `rocketpy_animation.py`: Python 3D animation system
-- `blender_animation/`: Blender integration for high-quality rendering
-- `create_rocket_kml.py`: KML export for Google Earth visualization
+1. Run `src/visualization/python/create_rocket_kml.py` to convert trajectory data to KML format
+2. Open the generated `output/kml/rocket_trajectory_static.kml` file in Google Earth
 
 ## Requirements
 
