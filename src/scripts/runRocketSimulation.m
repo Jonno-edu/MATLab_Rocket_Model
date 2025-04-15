@@ -498,3 +498,105 @@ fprintf('\nExported trajectory data to %s\n', resultsFilePath);
 
 % --- END: Updated Data Export Section ---
 
+% Tab 10: Controller Information
+controllerTab = uitab(tabgp, 'Title', 'Controller Info');
+
+% Collect controller parameters
+inner_kp = inner_Kp;  % Inner loop proportional gain
+inner_ki = inner_Ki;  % Inner loop integral gain
+outer_kp = outer_Kp;  % Outer loop proportional gain
+outer_ki = outer_Ki;  % Outer loop integral gain
+
+% Designed actuator parameters (used for controller design)
+designed_actuator_type = 'Second Order';
+designed_actuator_natural_freq = 1500;  % Natural frequency (rad/s)
+designed_actuator_damping_ratio = 0.707;  % Damping ratio
+
+% Actual actuator parameters (from initialization)
+actual_actuator_type = 'Second Order';
+actual_actuator_natural_freq = Actuators.Nozzle.NaturalFreq;  % Natural frequency (rad/s)
+actual_actuator_damping_ratio = Actuators.Nozzle.DampingRatio;  % Damping ratio
+
+inner_bandwidth = target_bw_inner_hint;  % Inner loop bandwidth (rad/s)
+inner_phase_margin = target_pm_inner;    % Inner loop phase margin (degrees)
+outer_bandwidth = target_bw_outer_hint;  % Outer loop bandwidth (rad/s)
+outer_phase_margin = target_pm_outer;    % Outer loop phase margin (degrees)
+
+% Create text display for controller parameters
+controller_text = {
+    'CONTROLLER PARAMETERS', 
+    '=====================', 
+    '',
+    'Inner Loop (Pitch Rate) Controller:',
+    sprintf('  Kp = %.4f', inner_kp),
+    sprintf('  Ki = %.4f', inner_ki),
+    sprintf('  Bandwidth = %.3f rad/s (%.3f Hz)', inner_bandwidth, inner_bandwidth/(2*pi)),
+    sprintf('  Phase Margin = %.2f°', inner_phase_margin),
+    '',
+    'Outer Loop (Pitch Angle) Controller:',
+    sprintf('  Kp = %.4f', outer_kp),
+    sprintf('  Ki = %.4f', outer_ki),
+    sprintf('  Bandwidth = %.3f rad/s (%.3f Hz)', outer_bandwidth, outer_bandwidth/(2*pi)),
+    sprintf('  Phase Margin = %.2f°', outer_phase_margin),
+    '',
+    'Designed Actuator Specifications (Controller Design):',
+    sprintf('  Type: %s', designed_actuator_type),
+    sprintf('  Natural Frequency = %.3f rad/s (%.3f Hz)', designed_actuator_natural_freq, designed_actuator_natural_freq/(2*pi)),
+    sprintf('  Damping Ratio = %.3f', designed_actuator_damping_ratio),
+    '',
+    'Actual Actuator Specifications:',
+    sprintf('  Type: %s', actual_actuator_type),
+    sprintf('  Natural Frequency = %.3f rad/s (%.3f Hz)', actual_actuator_natural_freq, actual_actuator_natural_freq/(2*pi)),
+    sprintf('  Damping Ratio = %.3f', actual_actuator_damping_ratio)
+};
+
+% Display controller info in a clean text box
+annotation(controllerTab, 'textbox', [0.1, 0.1, 0.8, 0.8], ...
+    'String', controller_text, ...
+    'FontSize', 12, ...
+    'FontName', 'Consolas', ...
+    'EdgeColor', 'none', ...
+    'VerticalAlignment', 'top');
+
+% Tab 11: Combined Attitude and Controller Info
+combinedTab = uitab(tabgp, 'Title', 'Attitude + Controller Info');
+
+% Create a layout with plots on the left and controller info on the right
+% Attitude plots (left side)
+plotPanel = uipanel('Parent', combinedTab, 'Position', [0.05, 0.05, 0.6, 0.9], 'Title', 'Attitude Plots');
+
+% Nozzle Angle (bottom plot)
+axes('Parent', plotPanel, 'Position', [0.1, 0.05, 0.8, 0.2]);
+plot(t, nozzleAngle*180/pi, 'b-', 'LineWidth', 2);
+grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
+title('Nozzle Deflection Angle');
+
+% Pitch Rate (second from bottom)
+axes('Parent', plotPanel, 'Position', [0.1, 0.3, 0.8, 0.2]);
+plot(t, w(:,2)*180/pi, 'r-', 'LineWidth', 2);
+grid on; xlabel('Time (s)'); ylabel('Rate (deg/s)');
+title('Pitch Rate (omega_y)');
+
+% Angle of Attack (third from bottom)
+axes('Parent', plotPanel, 'Position', [0.1, 0.55, 0.8, 0.2]);
+plot(t_alpha, alpha_modified*180/pi, 'm-', 'LineWidth', 2);
+grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
+title('Angle of Attack');
+
+% Pitch Angle (top plot)
+axes('Parent', plotPanel, 'Position', [0.1, 0.8, 0.8, 0.2]);
+plot(t, theta*180/pi, 'g-', 'LineWidth', 2);
+grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
+title('Pitch Angle (theta)');
+
+% Controller information (right side)
+controllerPanel = uipanel('Parent', combinedTab, 'Position', [0.7, 0.05, 0.25, 0.9], 'Title', 'Controller Information');
+
+% Display controller info in a clean text box
+annotation(controllerPanel, 'textbox', [0.05, 0.05, 0.9, 0.9], ...
+    'String', controller_text, ...
+    'FontSize', 10, ...
+    'FontName', 'Consolas', ...
+    'EdgeColor', 'none', ...
+    'VerticalAlignment', 'top');
+
