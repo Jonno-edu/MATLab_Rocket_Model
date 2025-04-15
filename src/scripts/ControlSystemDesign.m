@@ -32,10 +32,10 @@ tau_act = 0.01; % Actuator time constant [s]
 G_act_1st = tf(1, [tau_act 1]);
 
 % ** Second-Order Model Parameters **
-omega_n = 1000;           % Natural frequency [rad/s] % <<< Can adjust this for testing (e.g., 250, 850, 1000)
+omega_n = 1500;           % Natural frequency [rad/s] % <<< Can adjust this for testing (e.g., 250, 850, 1000)
 zeta = 0.707;            % Damping ratio
-max_deflection = 0.069813; % Maximum deflection [rad]
-min_deflection = -0.069813; % Minimum deflection [rad]
+max_deflection = 0.069813*2; % Maximum deflection [rad]
+min_deflection = -0.069813*2; % Minimum deflection [rad]
 rate_limit = 2.618;      % Rate limit [rad/s]
 G_act_2nd = tf(omega_n^2, [1, 2*zeta*omega_n, omega_n^2]);
 
@@ -55,9 +55,9 @@ elseif actuator_model_type == 2
     G_act = G_act_2nd;
     model_name = '2nd Order';
     % Tuning parameters suitable for 2nd order model (robust, high PM)
-    target_bw_inner_hint = 3.0; % [rad/s]
+    target_bw_inner_hint = 1.5; % [rad/s]
     target_pm_inner = 60; % [degrees]
-    target_bw_outer_hint = 0.3; % [rad/s]
+    target_bw_outer_hint = 0.015; % [rad/s]
     target_pm_outer = 65; % [degrees]
     disp('*** Tuning for 2nd Order Actuator Model ***');
     fprintf(' - Natural Frequency: %.1f rad/s\n', omega_n);
