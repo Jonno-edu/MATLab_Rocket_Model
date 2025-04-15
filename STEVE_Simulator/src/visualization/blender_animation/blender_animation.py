@@ -18,11 +18,11 @@ CREATE_TRAJECTORY_CURVE = True       # Set to True to create static trajectory s
 TRAJECTORY_COLOR = (1.0, 1.0, 0.0, 1.0)  # Bright light yellow (R,G,B,A)
 # Or using hex conversion:
 # HEX: #FFFF33 converted to RGBA (1.0, 1.0, 0.2, 1.0)
-TRAJECTORY_THICKNESS = 0.1          # Thickness of the trajectory curve
+TRAJECTORY_THICKNESS = 0.05          # Thickness of the trajectory curve
 
 # Rocket properties
 ROCKET_LENGTH_M = 9.5418    # Total rocket length in meters
-nozzle_angle_multiplier = 1.0  # Multiplier for nozzle angle (if needed)
+nozzle_angle_multiplier = 1  # Multiplier for nozzle angle (if needed)
 # --- END USER SETTINGS ---
 
 # Get the objects
