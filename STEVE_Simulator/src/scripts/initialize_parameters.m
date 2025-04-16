@@ -16,7 +16,7 @@ Actuators.Nozzle.DampingRatio = 0.707;             % z_act
 Actuators.Nozzle.MaxDeflection = deg2rad(8);    % maxdef_nozzle [rad]
 Actuators.Nozzle.RateLimit = deg2rad(150);      % rate_lim_nozzle [rad/s]
 
-Actuators.Engine.MaxThrust = (27.6*10^3)*0.5;          % max_thrust [N]
+Actuators.Engine.MaxThrust = (27.6*10^3)*1;          % max_thrust [N]
 % Burn Time calculated in mass data section
 
 %Actuators.Engine.DelayBeforeStart = 5;           % Delay time in seconds
