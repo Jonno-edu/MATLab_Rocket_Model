@@ -1,19 +1,16 @@
 % Control System Design for Rocket Pitch Control
 % This script designs a cascaded control system for rocket pitch control
-% with inner rate loop and outer angle loop, allowing selection between
-% 1st-order and 2nd-order actuator models for tuning.
-% It extracts controller gains into variables for simulation use and
-% allows disabling plots for batch runs.
+% with inner rate loop and outer angle loop, using the identified
+% servo actuator model from system identification.
 
-%clear; clc; close all; % Keep this clear for the tuning script itself
+%clear; clc; close all;
 
 % --- Configuration Switches ---
-% Set to 1 for 1st-order actuator model tuning
-% Set to 2 for 2nd-order actuator model tuning
-actuator_model_type = 2; % <<< CHANGE THIS VALUE (1 or 2)
+% Always using 2nd-order identified actuator model
+actuator_model_type = 2;
 
 % Set to true to generate plots, false to suppress plots
-enable_plots = false; % <<< CHANGE THIS VALUE (true or false)
+enable_plots = false; 
 
 % --- Check for Control System Toolbox ---
 if isempty(ver('control'))
@@ -27,18 +24,22 @@ L = 4;                    % Moment arm [m]
 I = 9470;                 % Moment of inertia [kg*m^2]
 
 % --- Actuator Model Definitions ---
-% ** First-Order Model Parameters **
+% ** First-Order Model Parameters (kept for reference) **
 tau_act = 0.01; % Actuator time constant [s]
 G_act_1st = tf(1, [tau_act 1]);
 
-% ** Second-Order Model Parameters **
-omega_n = 500;           % Natural frequency [rad/s] % <<< Can adjust this for testing (e.g., 250, 850, 1000)
-zeta = 0.707;            % Damping ratio
-max_deflection = 0.069813*2; % Maximum deflection [rad]
-min_deflection = -0.069813*2; % Minimum deflection [rad]
-rate_limit = 2.618;      % Rate limit [rad/s]
-%G_act_2nd = tf(omega_n^2, [1, 2*zeta*omega_n, omega_n^2])
-G_act_2nd = tf([5.558 1.152e04], [1 164.4 1.153e04])
+% ** Second-Order Model from System Identification **
+% Replace the original model with our identified model
+omega_n = 17.57;           % Natural frequency [rad/s] from identification
+zeta = 0.77;               % Damping ratio from identification
+
+% Convert degrees to radians for physical limits
+max_deflection = 12.5 * pi/180;    % Maximum deflection [rad] (12.5 degrees)
+min_deflection = -12.5 * pi/180;   % Minimum deflection [rad] (-12.5 degrees)
+rate_limit = 75 * pi/180;          % Rate limit [rad/s] (75 deg/s)
+
+% Our identified transfer function
+G_act_2nd = tf([0.2133 6824], [1 272 3.091e04]);
 
 % --- Select Actuator Model and Tuning Parameters Based on Switch ---
 if actuator_model_type == 1
@@ -54,18 +55,19 @@ if actuator_model_type == 1
 
 elseif actuator_model_type == 2
     G_act = G_act_2nd;
-    model_name = '2nd Order';
-    % Tuning parameters suitable for 2nd order model (robust, high PM)
-    target_bw_inner_hint = 3; % [rad/s]
+    model_name = 'Identified 2nd Order';
+    % Tuning parameters adjusted for identified model
+    % Using ~1/5 of actuator natural frequency for inner loop bandwidth
+    target_bw_inner_hint = 1; % [rad/s] - keeping original value as it's appropriate
     target_pm_inner = 60; % [degrees]
-    target_bw_outer_hint = 0.3; % [rad/s]
+    target_bw_outer_hint = 0.1; % [rad/s]
     target_pm_outer = 65; % [degrees]
-    disp('*** Tuning for 2nd Order Actuator Model ***');
-    fprintf(' - Natural Frequency: %.1f rad/s\n', omega_n);
+    disp('*** Tuning for Identified 2nd Order Actuator Model ***');
+    fprintf(' - Natural Frequency: %.2f rad/s (%.2f Hz)\n', omega_n, omega_n/(2*pi));
     fprintf(' - Damping Ratio: %.3f\n', zeta);
-    % Only display limits if using 2nd order model
-    fprintf(' - Deflection Limits: ±%.4f rad\n', max_deflection);
-    fprintf(' - Rate Limit: %.3f rad/s\n', rate_limit);
+    % Display identified limits
+    fprintf(' - Deflection Limits: ±%.2f rad (±%.2f deg)\n', max_deflection, max_deflection*180/pi);
+    fprintf(' - Rate Limit: %.3f rad/s (%.2f deg/s)\n', rate_limit, rate_limit*180/pi);
 else
     error('Invalid actuator_model_type selected. Choose 1 or 2.');
 end
@@ -105,7 +107,7 @@ fprintf('\nInner Closed-Loop TF (Rate Cmd -> Rate) (%s actuator):\n', model_name
 disp(inner_loop_closed);
 
 if enable_plots
-    figure_name_prefix = sprintf('%s Actuator (omega_n=%.0f)', model_name, omega_n); % More descriptive prefix
+    figure_name_prefix = sprintf('%s Actuator (omega_n=%.2f)', model_name, omega_n); % More descriptive prefix
 
     figure('Name', sprintf('%s: Inner Loop Step Response', figure_name_prefix));
     step(inner_loop_closed);
@@ -226,19 +228,21 @@ if enable_plots
 end % end enable_plots for outer locus
 
 % --- Note on Rate and Deflection Limits ---
-% This section is kept outside the plotting switch as it's informational text
 fprintf('\n--- Actuator Limits Note ---\n');
-if actuator_model_type == 2
-    fprintf('The nonlinear second-order actuator has constraints (not included in linear tuning):\n');
-    fprintf(' - Deflection limits: ±%.4f rad (±%.1f deg)\n', max_deflection, max_deflection*180/pi);
-    fprintf(' - Rate limit: %.3f rad/s (%.1f deg/s)\n', rate_limit, rate_limit*180/pi);
-else
-    fprintf('The first-order model used for tuning does not include physical limits.\n');
-end
-fprintf('For simulation testing (especially with nonlinear actuator):\n');
-fprintf(' 1. Ensure anti-windup is enabled in the PID implementation (Simulink blocks).\n');
-fprintf(' 2. Monitor actuator commands and outputs to check for saturation.\n');
-fprintf(' 3. Use the gains generated by this script (tuned for %s model).\n', model_name);
+fprintf('The identified servo actuator has the following constraints:\n');
+fprintf(' - Deflection limits: ±%.2f rad (±%.2f deg)\n', max_deflection, max_deflection*180/pi);
+fprintf(' - Rate limit: %.3f rad/s (%.2f deg/s)\n', rate_limit, rate_limit*180/pi);
+fprintf('For simulation testing with this actuator:\n');
+fprintf(' 1. Ensure anti-windup is enabled in the PID implementation to prevent integrator windup.\n');
+fprintf(' 2. Monitor actuator commands to check for saturation (especially rate limits).\n');
+fprintf(' 3. Consider that the actuator may be the performance bottleneck (natural frequency %.2f rad/s).\n', omega_n);
+
+% --- Create Full System Model with Nonlinear Actuator ---
+fprintf('\n--- Full System Model Notes ---\n');
+fprintf('For Simulink implementation, model the servo as:\n');
+fprintf(' 1. Linear part: Transfer function [0.02296 s + 68.16]/[s^2 + 27.16 s + 308.7]\n');
+fprintf(' 2. Nonlinear constraints: Saturation block (±%.2f rad) and Rate Limiter (±%.2f rad/s)\n', max_deflection, rate_limit);
+fprintf(' 3. Pushrod linkage: Convert servo angle to nozzle angle using leverage ratio\n');
 
 % --- GAINS FOR SIMULATION (Always Displayed) ---
 fprintf('\n--- GAINS FOR SIMULATION ---\n');
@@ -250,3 +254,16 @@ fprintf('Outer Ki: %.6f\n', outer_Ki);
 fprintf('Outer Kd: %.6f\n', outer_Kd); % This will be 0 for PI controller
 fprintf('---------------------------\n');
 
+% --- Additional Notes on Implementation ---
+fprintf('\n--- Implementation Recommendations ---\n');
+fprintf('1. The identified actuator bandwidth (%.2f rad/s) is much lower than the\n', omega_n);
+fprintf('   original actuator in the script (500 rad/s), which may result in slower\n');
+fprintf('   overall control performance.\n');
+fprintf('2. Consider using the nozzle angle kinematic conversion function in Simulink:\n');
+fprintf('   function theta_n = servo2nozzle(theta_s)\n');
+fprintf('       L_servo = 0.02; %% 20mm servo arm\n');
+fprintf('       L_nozzle = 0.08; %% 80mm bell crank\n');
+fprintf('       theta_n = asin((L_servo/L_nozzle) * sin(theta_s));\n');
+fprintf('   end\n');
+fprintf('3. The tuned PID values above account for the servo dynamics but not the\n');
+fprintf('   pushrod kinematics. Use these gains with the full nonlinear model.\n');
