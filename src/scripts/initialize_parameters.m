@@ -3,7 +3,7 @@ clearvars -except STeVe*; clc; close all;
 
 %% System Parameters
 Sim.Timestep = 0.0001;
-Sim.Time = 60;
+Sim.Time = 30;
 
 Initial.Conditions.theta0 = deg2rad(70);         % Initial pitch [deg]
 Initial.Conditions.V0 = 0;                       % Initial velocity [m/s]
