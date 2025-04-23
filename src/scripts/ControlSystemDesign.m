@@ -58,9 +58,9 @@ elseif actuator_model_type == 2
     model_name = 'Identified 2nd Order';
     % Tuning parameters adjusted for identified model
     % Using ~1/5 of actuator natural frequency for inner loop bandwidth
-    target_bw_inner_hint = 2; % [rad/s] - keeping original value as it's appropriate
+    target_bw_inner_hint = 2; % [rad/s]
     target_pm_inner = 60; % [degrees]
-    target_bw_outer_hint = 0.2; % [rad/s]
+    target_bw_outer_hint = 1; % [rad/s]
     target_pm_outer = 65; % [degrees]
     disp('*** Tuning for Identified 2nd Order Actuator Model ***');
     fprintf(' - Natural Frequency: %.2f rad/s (%.2f Hz)\n', omega_n, omega_n/(2*pi));
