@@ -1,9 +1,9 @@
 %% initialize.m - Initialize rocket simulation parameters
-clearvars -except STeVe*; clc; close all;
+%clearvars -except STeVe*; clc; close all;
 
 %% System Parameters
 Sim.Timestep = 0.0001;
-Sim.Time = 60*2;
+Sim.Time = 63;
 
 Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
 Initial.Conditions.tiltAngle = deg2rad(60);         % Initial pitch [deg]
