@@ -628,3 +628,39 @@ annotation(controllerPanel, 'textbox', [0.05, 0.05, 0.9, 0.9], ...
     'EdgeColor', 'none', ...
     'VerticalAlignment', 'top');
 
+
+% --- Tab: Pitch & Nozzle Analysis ---
+tabPitch = uitab(tabgp, 'Title', 'Pitch & Nozzle');
+tlo = tiledlayout(tabPitch, 3, 1, 'TileSpacing','compact','Padding','compact');
+
+% 1) Pitch angle and command
+ax1 = nexttile(tlo, 1);
+plot(ax1, t, theta*180/pi,     'g-',  'LineWidth', 2); hold(ax1,'on');
+plot(ax1, t, thetaCmd*180/pi, 'g--', 'LineWidth', 1.5); hold(ax1,'off');
+grid(ax1,'on');
+xlabel(ax1,'Time (s)');
+ylabel(ax1,'Angle (°)');
+title(ax1,'Pitch Angle vs Command');
+legend(ax1,'Actual','Command','Location','best');
+
+
+% 2) Nozzle angle vs time
+ax2 = nexttile(tlo, 2);
+plot(ax2, t, nozzleAngle*180/pi, 'b-', 'LineWidth', 2);
+grid(ax2,'on');
+xlabel(ax2,'Time (s)');
+ylabel(ax2,'Angle (°)');
+title(ax2,'Nozzle Deflection Angle');
+
+
+% Annotate initial pitch rate
+pr0 = Initial.Conditions.pitchRate;  % [deg/s]
+yl = ylim(ax1);
+text(ax1, t(1), yl(2), sprintf('Pitch Rate to vertical = %.1f°/s', pr0), ...
+     'VerticalAlignment','top','FontSize',10);
+% 3) Nozzle angle box‐and‐whisker with angle on the x-axis
+ax3 = nexttile(tlo, 3);
+b = boxchart(ax3, nozzleAngle*180/pi, 'Orientation','horizontal');  % Horizontal box chart[3]
+grid(ax3, 'on');
+xlabel(ax3, 'Angle (°)');
+title(ax3, 'Nozzle Angle Distribution');

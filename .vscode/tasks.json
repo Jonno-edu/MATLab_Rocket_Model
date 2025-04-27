@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run Blender Script",
+            "type": "shell",
+            "command": "/Applications/Blender.app/Contents/MacOS/Blender",
+            "args": [
+                "/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/src/visualization/blender_animation/RocketAnimation.blend", // Path to the .blend file
+                "--python",
+                "${workspaceFolder}/STEVE_Simulator/src/visualization/blender_animation/blender_animation.py"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "detail": "Run the Blender script for rocket animation with the RocketAnimation.blend file."
+        }
+    ]
+}
