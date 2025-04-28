@@ -45,7 +45,7 @@ fprintf('Model %s loaded.\n', modelName);
 
 % --- Sweep Configuration ---
 % Define pitch-rate sweep and preallocate storage
-pitchRates   = 0:0.25:1;            % Initial pitch rates to test [deg/s]
+pitchRates   = 0:0.1:1;            % Initial pitch rates to test [deg/s]
 nRuns        = numel(pitchRates);
 totalRuns    = nRuns; % Store the total number of runs safely
 nozzleHist   = cell(totalRuns,1);      % Use totalRuns for allocation

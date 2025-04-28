@@ -17,10 +17,10 @@ function [Initial, Actuators, RocketAero, PrelookupData, Mach_Breakpoints, Alpha
 
 %% System Parameters
 Sim.Timestep = 0.0001;
-Sim.Time = 5;
+Sim.Time = 63;
 
 Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
-Initial.Conditions.tiltAngle = deg2rad(60);         % Initial pitch [deg]
+Initial.Conditions.tiltAngle = deg2rad(75);         % Initial pitch [deg]
 Initial.Conditions.pitchRate = (0.5);      % Default Pitch rate [deg/s] - will be overridden in sweep
 Initial.Conditions.V0 = 0;                       % Initial velocity [m/s]
 Initial.Conditions.h0 = (-1)*0;                  % Initial altitude [m]
