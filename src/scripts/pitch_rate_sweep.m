@@ -1,8 +1,13 @@
 % --- Script: Pitch Rate Sweep ---
 clear; clc; close all; % Start fresh for a sweep script
+originalPath = path; % Store original path
 
 % --- Configuration ---
 useParallel = true; % Set to true for parsim, false for sequential sim
+
+% --- Initialize Timing Variables ---
+parallelTime = [];
+sequentialTime = [];
 
 % --- Setup: Robust Path Configuration ---
 fprintf('Setting up paths...\n');
@@ -45,18 +50,17 @@ fprintf('Model %s loaded.\n', modelName);
 
 % --- Sweep Configuration ---
 % Define pitch-rate sweep and preallocate storage
-pitchRates   = 0:0.1:1;            % Initial pitch rates to test [deg/s]
+pitchRates   = 0:0.05:1;            % Initial pitch rates to test [deg/s]
 nRuns        = numel(pitchRates);
 totalRuns    = nRuns; % Store the total number of runs safely
 nozzleHist   = cell(totalRuns,1);      % Use totalRuns for allocation
 thetaHist    = cell(totalRuns,1);      % Use totalRuns for allocation
 thetaCmdHist = cell(totalRuns,1);      % Use totalRuns for allocation
-legendEntriesPlot1 = cell(totalRuns, 1); % Preallocate legend strings for Plot 1
-legendEntriesPlot2 = cell(totalRuns, 1); % Preallocate legend strings for Plot 2
 maxHorizDistHist = zeros(totalRuns, 1); % Preallocate storage for max horizontal distance
 maxAltitudeHist  = zeros(totalRuns, 1); % Preallocate storage for max altitude
 timeVec      = [];                 % To store the time vector (assumed constant across runs)
 tRunHist     = cell(totalRuns, 1); % Preallocate cell array to store individual time vectors for each run
+simOutArray  = []; % Initialize simOutArray for parsim results
 
 % --- Simulation Execution ---
 if useParallel
@@ -162,9 +166,9 @@ if useParallel
         fprintf('Parallel simulation failed.\nError message: %s\n', ME_parsim.message);
         rethrow(ME_parsim);
     end
-    parsimTime = toc(parsimTic); % Stop timer for parsim
+    parallelTime = toc(parsimTic); % Stop timer for parsim
     fprintf('...Parallel simulations complete.\n');
-    fprintf('\nPARSIM execution time: %.2f seconds\n', parsimTime);
+    fprintf('\nPARSIM execution time: %.2f seconds\n', parallelTime);
 
     % --- Check for Simulation Errors BEFORE Data Extraction ---
     errorOccurred = false;
@@ -344,7 +348,10 @@ fprintf('Aligning time vectors and interpolating results...\n');
 % Find the first valid run to use as reference
 firstValidRun = find(~cellfun('isempty', tRunHist), 1);
 if isempty(firstValidRun)
-    error('No valid simulation runs completed. Cannot proceed with post-processing.');
+    warning('No valid simulation runs completed. Cannot proceed with post-processing or saving.');
+    % Clean up and exit if no runs were valid
+    path(originalPath); % Restore original path
+    return; 
 end
 timeVec = tRunHist{firstValidRun}; 
 nTimeRef = length(timeVec);
@@ -354,9 +361,10 @@ for i = 1:totalRuns
     % Skip runs that failed extraction (have empty time vectors)
     if isempty(tRunHist{i})
         fprintf('Skipping interpolation for run index %d (failed extraction).\n', i);
-        % Ensure legend entries are handled for skipped runs if necessary
-        legendEntriesPlot1{i} = sprintf('Run %d Failed', i);
-        legendEntriesPlot2{i} = sprintf('Run %d Failed', i);
+        % Ensure data is NaN for saving consistency
+        nozzleHist{i} = NaN(nTimeRef, 1);
+        thetaHist{i} = NaN(nTimeRef, 1);
+        thetaCmdHist{i} = NaN(nTimeRef, 1);
         continue;
     end
 
@@ -371,149 +379,44 @@ for i = 1:totalRuns
             thetaCmdHist{i}= interp1(tRunHist{i}, thetaCmdHist{i},timeVec, 'linear', 'extrap');
         catch ME_interp
             fprintf('ERROR during interpolation for run %d: %s\n', i, ME_interp.message);
-            % Handle interpolation error - maybe set data to NaN or skip
-            nozzleHist{i} = NaN(size(timeVec));
-            thetaHist{i} = NaN(size(timeVec));
-            thetaCmdHist{i} = NaN(size(timeVec));
+            % Handle interpolation error - set data to NaN
+            nozzleHist{i} = NaN(nTimeRef, 1);
+            thetaHist{i} = NaN(nTimeRef, 1);
+            thetaCmdHist{i} = NaN(nTimeRef, 1);
             warning('Setting data for run %d to NaN due to interpolation error.', i);
         end
     end
-    
-    % --- Generate Legend Entries AFTER the loop ---
-    % Ensure pitchRates is available 
-    if ~exist('pitchRates', 'var')
-        warning('pitchRates variable might have been cleared. Re-defining for legends.');
-        pitchRates = 0:0.25:1; % Make sure this matches the definition before the loop
-    end
-    currentLegendEntry = sprintf('PR=%.1f°/s', pitchRates(i));
-    legendEntriesPlot1{i} = currentLegendEntry;
-    legendEntriesPlot2{i} = currentLegendEntry;
 end
-fprintf('Interpolation and legend generation complete.\n');
+fprintf('Interpolation complete.\n');
 
-% --- Plotting Results --- (Uses the now consistent timeVec and interpolated data)
-fprintf('Generating plots...\n');
-
-% Plot 1: Nozzle angle vs time for all runs
-figure('Name','Nozzle Angle Time Histories');
-hold on;
-colors1 = lines(totalRuns);
-validRunIndices1 = find(~cellfun(@(x) all(isnan(x(:))), nozzleHist)); % Find runs with non-NaN data
-legendHandles1 = gobjects(length(validRunIndices1), 1);
-legendTexts1 = cell(length(validRunIndices1), 1);
-plotIdx = 1;
-for i = validRunIndices1(:)' % Iterate through valid runs
-    legendHandles1(plotIdx) = plot(timeVec, nozzleHist{i}, 'LineWidth', 1.5, 'Color', colors1(i,:));
-    legendTexts1{plotIdx} = legendEntriesPlot1{i};
-    plotIdx = plotIdx + 1;
+% --- Display Timing Results ---
+fprintf('\n--- Timing Comparison ---\n');
+if useParallel && ~isempty(parallelTime)
+    fprintf('Parallel execution time: %.2f seconds\n', parallelTime);
 end
-hold off;
-grid on;
-xlabel('Time (s)');
-ylabel('Nozzle Deflection (°)');
-if ~isempty(legendHandles1)
-    legend(legendHandles1, legendTexts1, 'Location','best');
-else
-    title('Nozzle Angle vs Time (No valid runs to plot)');
-end
-title('Nozzle Angle vs Time for Various Initial Pitch Rates');
-saveas(gcf, fullfile(resultsDir, 'sweep_nozzle_histories.png'));
-
-% Plot 2: θ and θ_cmd vs time for all runs
-figure('Name','Pitch Angle vs Command Time Histories');
-hold on;
-colors2 = lines(totalRuns);
-validRunIndices2 = find(~cellfun(@(x) all(isnan(x(:))), thetaHist)); % Find runs with non-NaN theta data
-legendHandles2 = gobjects(length(validRunIndices2), 1);
-legendTexts2 = cell(length(validRunIndices2), 1);
-plotIdx = 1;
-for i = validRunIndices2(:)' % Iterate through valid runs
-    h_theta = plot(timeVec, thetaHist{i},   '-',  'Color', colors2(i,:), 'LineWidth', 1.5);
-    % Check if thetaCmdHist{i} is also valid before plotting
-    if i <= length(thetaCmdHist) && ~all(isnan(thetaCmdHist{i}(:)))
-        plot(timeVec, thetaCmdHist{i}, '--', 'Color', colors2(i,:), 'LineWidth', 1.0);
-    end
-    legendHandles2(plotIdx) = h_theta; % Use handle from actual theta plot for legend
-    legendTexts2{plotIdx} = legendEntriesPlot2{i};
-    plotIdx = plotIdx + 1;
-end
-hold off;
-grid on;
-xlabel('Time (s)');
-ylabel('Angle (°)');
-if ~isempty(legendHandles2)
-    legend(legendHandles2, legendTexts2, 'Location','best');
-else
-     title({'Actual (Solid) and Commanded (Dashed) Pitch Angles', '(No valid runs to plot)'});
-end
-title({'Actual (Solid) and Commanded (Dashed) Pitch Angles', 'for Various Initial Pitch Rates'});
-saveas(gcf, fullfile(resultsDir, 'sweep_pitch_histories.png'));
-
-% Plot 3: Max nozzle deflection vs initial pitch-rate
-figure('Name','Max Nozzle Angle vs Initial Pitch Rate');
-maxNozzleAbs = cellfun(@(x) max(abs(x)), nozzleHist); % Recalculate in case of NaNs
-validRuns3 = ~isnan(maxNozzleAbs);
-if ~exist('pitchRates', 'var')
-    warning('pitchRates variable was cleared. Reloading for plot 3.');
-    pitchRates = 0:0.25:1; 
-end
-if any(validRuns3)
-    plot(pitchRates(validRuns3), maxNozzleAbs(validRuns3), 'o-', 'LineWidth',2, 'MarkerSize',8, 'MarkerFaceColor', 'b');
-else
-    text(0.5, 0.5, 'No valid runs to plot', 'HorizontalAlignment', 'center');
-end
-grid on;
-xlabel('Initial Pitch Rate (°/s)');
-ylabel('Maximum Absolute Nozzle Deflection (°)');
-title('Max |Nozzle Deflection| vs Initial Pitch Rate');
-saveas(gcf, fullfile(resultsDir, 'sweep_max_nozzle_vs_pitchrate.png'));
-
-% Plot 4: Max Altitude & Horizontal Distance vs Initial Pitch Rate
-figure('Name','Max Altitude & Horizontal Distance vs Initial Pitch Rate');
-
-if ~exist('pitchRates', 'var')
-    warning('pitchRates variable was cleared. Reloading for plot 4.');
-    pitchRates = 0:0.25:1; 
+if ~useParallel && ~isempty(sequentialTime)
+    fprintf('Sequential execution time: %.2f seconds\n', sequentialTime);
+elseif useParallel && exist('sequentialTime', 'var') && ~isempty(sequentialTime) % If parallel was used but sequential was also run for comparison
+     fprintf('Sequential execution time (for comparison): %.2f seconds\n', sequentialTime);
 end
 
-% Plot Max Altitude on the left y-axis
-yyaxis left
-validRuns4_alt = ~isnan(maxAltitudeHist);
-if any(validRuns4_alt)
-    plot(pitchRates(validRuns4_alt), maxAltitudeHist(validRuns4_alt), 'o-', 'LineWidth',2, 'MarkerSize',8, 'MarkerFaceColor', 'r', 'DisplayName', 'Max Altitude');
-    ylabel('Maximum Altitude (km)');
-else
-    ylabel('Maximum Altitude (km) - No Data');
+% --- Save Results ---
+resultsFilename = fullfile(resultsDir, sprintf('pitch_rate_sweep_results_%s.mat', datestr(now,'yyyymmdd_HHMMSS')));
+fprintf('\nSaving results to: %s\n', resultsFilename);
+try
+    % Save extracted/interpolated data and key parameters
+    save(resultsFilename, 'pitchRates', 'totalRuns', 'timeVec', ...
+         'tRunHist', 'nozzleHist', 'thetaHist', 'thetaCmdHist', ...
+         'maxHorizDistHist', 'maxAltitudeHist', ...
+         'parallelTime', 'sequentialTime', 'useParallel');
+    % Optionally save simOutArray if needed for deeper analysis, but it can be large
+    % save(resultsFilename, 'simOutArray', '-append'); 
+    fprintf('Results saved successfully.\n');
+catch ME_save
+    fprintf('Error saving results: %s\n', ME_save.message);
 end
 
-% Plot Max Horizontal Distance on the right y-axis
-yyaxis right
-validRuns4_dist = ~isnan(maxHorizDistHist);
-if any(validRuns4_dist)
-    plot(pitchRates(validRuns4_dist), maxHorizDistHist(validRuns4_dist), 's-', 'LineWidth',2, 'MarkerSize',8, 'MarkerFaceColor', 'g', 'DisplayName', 'Max Horizontal Distance');
-    ylabel('Maximum Horizontal Distance (km)');
-else
-    ylabel('Maximum Horizontal Distance (km) - No Data');
-end
+fprintf('\nPitch rate sweep script finished.\n');
 
-grid on;
-xlabel('Initial Pitch Rate (°/s)');
-legend('Location','best');
-title('Max Altitude & Horizontal Distance vs Initial Pitch Rate');
-saveas(gcf, fullfile(resultsDir, 'sweep_max_distances_vs_pitchrate.png'));
-
-fprintf('Plotting complete. Figures saved to %s.\n', resultsDir);
-
-% --- Display Timings --- (Already printed after each block)
-if useParallel && exist('parsimTime', 'var')
-    fprintf('\n--- Timing Summary ---\n');
-    fprintf('Parallel (parsim) execution time: %.2f seconds\n', parsimTime);
-elseif ~useParallel && exist('sequentialTime', 'var')
-    fprintf('\n--- Timing Summary ---\n');
-    fprintf('Sequential (sim) execution time: %.2f seconds\n', sequentialTime);
-end
-
-% --- Cleanup ---
-fprintf('Closing model %s...\n', modelName);
-close_system(modelName, 0); % Close model without saving changes
-fprintf('Script finished.\n');
+% Restore original path
+path(originalPath);
