@@ -3,7 +3,7 @@
 
 %% System Parameters
 Sim.Timestep = 0.0001;
-Sim.Time = 63;
+Sim.Time = 5;
 
 Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
 Initial.Conditions.tiltAngle = deg2rad(60);         % Initial pitch [deg]
