@@ -39,7 +39,13 @@ codegen/
 STEVE_Simulator/STEVE_Simulation_faultInfo.xml
 
 STEVE_Simulator/RocketSimData.mat
-STEVE_Simulator/blender_animation/RocketAnimation.blend1
 STEVE_Simulator/rocket_trajectory_100fps.csv
 STEVE_Simulator/data/results/tilt_pitch_rate_sweep_results.mat
 STEVE_Simulator/data/results/pitch_rate_sweep_results.mat
+STEVE_Simulator/output/figures/fig_counter.mat
+
+# Ignore Blender backup files
+*.blend1
+
+# Ignore large texture files removed from history
+STEVE_Simulator/src/visualization/blender_animation/GOOGLE_SAT_WM.tif
