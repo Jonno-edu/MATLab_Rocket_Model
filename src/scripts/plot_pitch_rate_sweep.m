@@ -217,7 +217,7 @@ else
     fprintf('Plot 3 generated (not saved).\n');
 end
 
-% Plot 4: Max Altitude, Horizontal Distance, and Nozzle Deflection vs Initial Pitch Rate (Remains Plot 4)
+% Plot 4: Max Altitude, Horizontal Distance, and Nozzle Deflection vs Initial Pitch Rate (Manual 3-Axis)
 figure('Name','Max Performance Metrics vs Initial Pitch Rate');
 
 if ~exist('pitchRates', 'var')
@@ -230,59 +230,110 @@ end
 % Calculate max absolute nozzle deflection, handling potential empty/NaN cells
 maxNozzleAbs = zeros(totalRuns, 1) * NaN; % Initialize with NaN
 for i = 1:totalRuns
-    if ~isempty(nozzleHist{i}) && ~all(isnan(nozzleHist{i}(:)))
+    if i <= numel(nozzleHist) && ~isempty(nozzleHist{i}) && ~all(isnan(nozzleHist{i}(:)))
         maxNozzleAbs(i) = max(abs(nozzleHist{i}));
+    else
+        % Ensure it remains NaN if data is missing or invalid for this run
+        maxNozzleAbs(i) = NaN;
     end
 end
 
-legendHandles4 = [];
-legendTexts4 = {};
+% Define colors
+colorAlt = [1 0 0]; % Red
+colorDist = [0 1 0]; % Green
+colorNozzle = [0 0 1]; % Blue
 
-% Left Axis (Altitude and Nozzle Deflection)
-yyaxis left 
-validRuns4_alt = ~isnan(maxAltitudeHist);
-if any(validRuns4_alt)
-    h_alt = plot(pitchRates(validRuns4_alt), maxAltitudeHist(validRuns4_alt), 'o-', 'LineWidth',2, 'MarkerSize',8, 'MarkerFaceColor', 'r', 'Color', 'r', 'DisplayName', 'Max Altitude (km)');
-    legendHandles4 = [legendHandles4, h_alt];
-    legendTexts4 = [legendTexts4, 'Max Altitude (km)'];
-    ylabel('Maximum Altitude (km) / Max |Nozzle Angle| (°)');
+legendHandles = [];
+legendLabels = {};
+
+% --- Axis 1 (Altitude) ---
+ax1 = gca; % Get current axes
+hold(ax1, 'on');
+validRunsAlt = ~isnan(maxAltitudeHist);
+if any(validRunsAlt)
+    h1 = plot(ax1, pitchRates(validRunsAlt), maxAltitudeHist(validRunsAlt), 'o-', ...
+              'Color', colorAlt, 'LineWidth', 2, 'MarkerSize', 8, 'MarkerFaceColor', colorAlt);
+    legendHandles(end+1) = h1;
+    legendLabels{end+1} = 'Max Altitude (km)';
+    ylabel(ax1, 'Maximum Altitude (km)');
 else
-    ylabel('Maximum Altitude (km) / Max |Nozzle Angle| (°) - No Alt Data');
+    ylabel(ax1, 'Maximum Altitude (km) - No Data');
     warning('No valid altitude data found for Plot 4.');
 end
-hold on; % Hold after first plot on left axis
-validRuns4_nozzle = ~isnan(maxNozzleAbs);
-if any(validRuns4_nozzle)
-    h_nozzle = plot(pitchRates(validRuns4_nozzle), maxNozzleAbs(validRuns4_nozzle), 'd-', 'LineWidth',2, 'MarkerSize',8, 'MarkerFaceColor', 'b', 'Color', 'b', 'DisplayName', 'Max |Nozzle Angle| (°)');
-    legendHandles4 = [legendHandles4, h_nozzle];
-    legendTexts4 = [legendTexts4, 'Max |Nozzle Angle| (°)'];
+set(ax1, 'XColor', 'k', 'YColor', colorAlt, 'Box', 'off'); % Color axis 1
+grid(ax1, 'on');
+xlabel(ax1, 'Initial Pitch Rate (°/s)'); % Label X on the first axis
+
+% --- Axis 2 (Distance) ---
+ax2 = axes('Position', get(ax1, 'Position'), ...
+           'YAxisLocation', 'right', ...
+           'Color', 'none', ... % Transparent background
+           'XAxisLocation', 'bottom', ... % Place X axis at bottom (like ax1)
+           'XTick', [], ... % Hide X ticks and labels for this axis
+           'YColor', colorDist, ...
+           'Box', 'off');
+linkaxes([ax1, ax2], 'x'); % Link X axes
+hold(ax2, 'on');
+validRunsDist = ~isnan(maxHorizDistHist);
+if any(validRunsDist)
+    h2 = plot(ax2, pitchRates(validRunsDist), maxHorizDistHist(validRunsDist), 's-', ...
+              'Color', colorDist, 'LineWidth', 2, 'MarkerSize', 8, 'MarkerFaceColor', colorDist);
+    legendHandles(end+1) = h2;
+    legendLabels{end+1} = 'Max Horizontal Distance (km)';
+    ylabel(ax2, 'Maximum Horizontal Distance (km)');
 else
-     warning('No valid max nozzle angle data found for Plot 4.');
+     ylabel(ax2, 'Maximum Horizontal Distance (km) - No Data');
+     warning('No valid horizontal distance data found for Plot 4.');
 end
-hold off;
-ax = gca; ax.YAxis(1).Color = 'k'; % Set left axis color (now shared)
+hold(ax2, 'off');
 
-% Right Axis (Horizontal Distance)
-yyaxis right 
-validRuns4_dist = ~isnan(maxHorizDistHist);
-if any(validRuns4_dist)
-    h_dist = plot(pitchRates(validRuns4_dist), maxHorizDistHist(validRuns4_dist), 's-', 'LineWidth',2, 'MarkerSize',8, 'MarkerFaceColor', 'g', 'Color', 'g', 'DisplayName', 'Max Horizontal Distance (km)');
-    legendHandles4 = [legendHandles4, h_dist];
-    legendTexts4 = [legendTexts4, 'Max Horizontal Distance (km)'];
-    ylabel('Maximum Horizontal Distance (km)');
+% --- Axis 3 (Nozzle Angle) ---
+pos1 = get(ax1, 'Position'); % Get position of the base axis
+ax3 = axes('Position', pos1, ... % Start with same position as ax1
+           'YAxisLocation', 'right', ...
+           'Color', 'none', ...
+           'XAxisLocation', 'bottom', ... % Keep X axis at bottom (invisible)
+           'XTick', [], ...
+           'YColor', colorNozzle, ...
+           'Box', 'off');
+
+% Link all three x-axes together
+linkaxes([ax1, ax2, ax3], 'x'); 
+
+% Offset the third axis slightly to the right to separate labels
+offset_factor = 0.08; % Adjust this value if needed (0.05 to 0.1 is typical)
+pos3 = get(ax3, 'Position');
+set(ax3, 'Position', [pos3(1) + offset_factor, pos3(2), pos3(3) - offset_factor, pos3(4)]); % Shift right and slightly reduce width
+
+hold(ax3, 'on');
+validRunsNozzle = ~isnan(maxNozzleAbs);
+if any(validRunsNozzle)
+    h3 = plot(ax3, pitchRates(validRunsNozzle), maxNozzleAbs(validRunsNozzle), 'd-', ...
+              'Color', colorNozzle, 'LineWidth', 2, 'MarkerSize', 8, 'MarkerFaceColor', colorNozzle);
+    legendHandles(end+1) = h3;
+    legendLabels{end+1} = 'Max |Nozzle Angle| (°)';
+    ylabel(ax3, 'Max |Nozzle Angle| (°)');
 else
-    ylabel('Maximum Horizontal Distance (km) - No Data');
-    warning('No valid horizontal distance data found for Plot 4.');
+    ylabel(ax3, 'Max |Nozzle Angle| (°) - No Data');
+    warning('No valid max nozzle angle data found for Plot 4.');
 end
-ax = gca; ax.YAxis(2).Color = 'g'; % Set right axis color
+hold(ax3, 'off');
 
-grid on;
-xlabel('Initial Pitch Rate (°/s)');
-title('Max Performance Metrics vs Initial Pitch Rate');
-if ~isempty(legendHandles4)
-    legend(legendHandles4, legendTexts4, 'Location','best');
+% --- Stacking Order --- 
+% Bring ax2 above ax3 (so its line/markers aren't hidden by ax3's axes)
+% Bring ax1 to the very top (for grid lines)
+uistack(ax2, 'top'); 
+uistack(ax1, 'top');
+
+hold(ax1, 'off'); % Release hold on the primary axis
+title(ax1, 'Max Performance Metrics vs Initial Pitch Rate');
+
+% Add legend using collected handles and labels
+if ~isempty(legendHandles)
+    legend(legendHandles, legendLabels, 'Location', 'best');
 end
 
+% --- Save Plot ---
 if savePlots
     saveas(gcf, fullfile(resultsDir, 'sweep_max_metrics_vs_pitchrate.png'));
     fprintf('Plot 4 saved.\n');

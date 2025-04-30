@@ -459,15 +459,16 @@ fprintf('Nozzle Angle Dominant Frequencies: %s Hz (%s rad/s)\n', ...
 
 % Save trajectory data for Python visualization
 sim_fps = 1/Sim.Timestep;          % Original simulation FPS
-target_fps = 100;                   % Desired output FPS
+target_fps = 60;                   % Desired output FPS (Changed from 100)
 downsample_factor = round(sim_fps/target_fps);
 
-% Downsample data for 100 FPS
+% Downsample data for 60 FPS
 sampled_indices = 1:downsample_factor:length(t);
 
-% Interpolate CG data (Assuming COM_X is CG distance from AFT end)
+% Interpolate CG data (Hold last value beyond original data range)
 sampled_times = t(sampled_indices);
-cg_from_aft_m = interp1(MassData.Time, MassData.COM_X, sampled_times, 'linear', 'extrap');
+last_cg_value = MassData.COM_X(end); % Get the last known CG value from aft end
+cg_from_aft_m = interp1(MassData.Time, MassData.COM_X, sampled_times, 'linear', last_cg_value);
 
 % Calculate CG position relative to the NOSE in body frame
 % Assumes body X-axis points forward from the nose.
@@ -512,7 +513,7 @@ if ~exist(resultsFolder, 'dir')
 end
 
 % Construct full file path and save CSV
-resultsFilePath = fullfile(resultsFolder, 'rocket_trajectory_100fps.csv');
+resultsFilePath = fullfile(resultsFolder, 'rocket_trajectory_60fps.csv'); % Changed filename
 writetable(trajectory_table, resultsFilePath);
 fprintf('\nExported trajectory data to %s\n', resultsFilePath);
 
