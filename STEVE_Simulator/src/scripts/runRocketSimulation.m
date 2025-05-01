@@ -38,13 +38,13 @@ alpha = out.alpha.Data;
 thetaCmd = out.thetaCmd.Data;
 thetadotCmd = out.thetadotCmd.Data;
 nozzleCmd = out.nozzleCmd.Data;
-nozzleFeedforward = out.nozzleFeedforward.Data;
+nozzleFeedforward = -out.nozzleFeedforward.Data;
 nozzleCmdTotal = out.nozzleCmdTotal.Data;
 
 % Extract force and moment data
 Fwind = out.Fwind.Data;
 Mwind = out.Mwind.Data;
-Fthrust = out.Fthrust.Data;
+Fthrust = out.Fthrust.Data; % Measured thrust vector
 Mthrust = out.Mthrust.Data;
 Fnet = out.Fnet.Data;
 Mnet = out.Mnet.Data;
@@ -68,7 +68,7 @@ nozzleCmdTotal = nozzleCmdTotal(N+1:end);
 % Skip first N frames for forces and moments too
 Fwind = Fwind(N+1:end,:);
 Mwind = Mwind(N+1:end,:);
-Fthrust = Fthrust(N+1:end,:);
+Fthrust = Fthrust(N+1:end,:); % Skip frames for thrust
 Mthrust = Mthrust(N+1:end,:);
 Fnet = Fnet(N+1:end,:);
 Mnet = Mnet(N+1:end,:);
@@ -305,165 +305,42 @@ plot(t, windSpeed, 'k-', 'LineWidth', 2);
 grid on; xlabel('Time (s)'); ylabel('Speed (m/s)');
 title('Wind Speed Magnitude');
 
-% Tab 8: Frequency Analysis
-tab8 = uitab(tabgp, 'Title', 'Frequency Analysis');
+% --- CSV Export Section ---
+% Define target FPS for export
+target_fps = 60; % Frames per second for Blender animation
 
-% Perform frequency analysis on pitch rate and nozzle angle
-% First, ensure consistent sampling by interpolating if needed
-Ts = mean(diff(t));                 % Average time step
-fs = 1/Ts;                          % Sampling frequency
-disp(['Sampling frequency: ' num2str(fs) ' Hz']);
+% Downsample data for target FPS
+sim_fps = 1 / Sim.Timestep; % Original simulation frame rate
+downsample_factor = round(sim_fps / target_fps);
 
-% Check if sampling frequency is sufficient for high-frequency detection
-nyquist_freq = fs/2;
-if nyquist_freq < 200  % We want to see up to at least 200 Hz
-    warning(['Sampling frequency (' num2str(fs) ' Hz) may be too low to detect 158 Hz oscillations. ' ...
-             'Nyquist frequency is ' num2str(nyquist_freq) ' Hz.']);
-end
-fprintf('Nyquist frequency (max detectable): %.2f Hz\n', nyquist_freq);
-
-% Prepare signals for analysis
-pitchRate = w(:,2);                 % Extract pitch rate data
-nozzleDeflection = nozzleAngle;     % Nozzle deflection angle
-
-% Compute frequency spectrum for pitch rate
-L = length(pitchRate);              % Length of signal
-nfft = 2^nextpow2(L);               % Next power of 2 from length
-Y = fft(pitchRate, nfft);
-f_hz = fs * (0:(nfft/2))/nfft;      % Frequency vector in Hz
-f_rads = 2*pi*f_hz;                 % Convert to rad/s
-P = abs(Y/nfft);                    % Normalized magnitude
-P = P(1:nfft/2+1);                  % Single-sided spectrum
-P(2:end-1) = 2*P(2:end-1);          % Account for single-sided spectrum
-
-% Compute frequency spectrum for nozzle angle
-Y_nozzle = fft(nozzleDeflection, nfft);
-P_nozzle = abs(Y_nozzle/nfft);
-P_nozzle = P_nozzle(1:nfft/2+1);
-P_nozzle(2:end-1) = 2*P_nozzle(2:end-1);
-
-% Find dominant frequencies
-[~, idx_pitch] = findpeaks(P, 'MinPeakHeight', max(P)*0.1, 'SortStr', 'descend');
-[~, idx_nozzle] = findpeaks(P_nozzle, 'MinPeakHeight', max(P_nozzle)*0.1, 'SortStr', 'descend');
-
-% Get top frequencies (up to 5) - still in Hz for command line output
-top_freq_pitch = f_hz(idx_pitch(1:min(5, length(idx_pitch))));
-top_freq_nozzle = f_hz(idx_nozzle(1:min(5, length(idx_nozzle))));
-
-% Look specifically for oscillations around 158 Hz
-target_freq = 158;
-freq_range = [150, 165];  % Range to look in (Hz)
-if max(f_hz) >= freq_range(2)  % Ensure our spectrum reaches this frequency
-    % Find indices in this range
-    range_indices = find(f_hz >= freq_range(1) & f_hz <= freq_range(2));
-    if ~isempty(range_indices)
-        % Find local maxima in this range for pitch rate
-        [pitch_peaks, pitch_locs] = findpeaks(P(range_indices));
-        if ~isempty(pitch_peaks)
-            [~, max_idx] = max(pitch_peaks);
-            peak_freq_pitch = f_hz(range_indices(pitch_locs(max_idx)));
-            fprintf('Pitch rate peak near 158 Hz: %.2f Hz (%.2f rad/s) with magnitude %.4e\n',peak_freq_pitch, peak_freq_pitch*2*pi, P(range_indices(pitch_locs(max_idx))));
-        else
-            fprintf('No pitch rate peaks found in the 150-165 Hz range\n');
-        end
-        
-        % Find local maxima in this range for nozzle angle
-        [nozzle_peaks, nozzle_locs] = findpeaks(P_nozzle(range_indices));
-        if ~isempty(nozzle_peaks)
-            [~, max_idx] = max(nozzle_peaks);
-            peak_freq_nozzle = f_hz(range_indices(nozzle_locs(max_idx)));
-            fprintf('Nozzle angle peak near 158 Hz: %.2f Hz (%.2f rad/s) with magnitude %.4e\n',peak_freq_nozzle, peak_freq_nozzle*2*pi, P_nozzle(range_indices(nozzle_locs(max_idx))));
-        else
-            fprintf('No nozzle angle peaks found in the 150-165 Hz range\n');
-        end
-    end
-else
-    fprintf('Frequency spectrum does not reach 158 Hz. Maximum frequency: %.2f Hz (%.2f rad/s)\n',max(f_hz), max(f_hz)*2*pi);
-end
-
-% Plot frequency spectrum of pitch rate - Full Range
-ax_pitch_full = axes('Parent', tab8, 'Position', [0.1, 0.78, 0.8, 0.18]);
-plot(f_rads, P, 'b-', 'LineWidth', 1.5);
-grid on;
-xlabel('Frequency (rad/s)');
-ylabel('Magnitude');
-title('Full Frequency Spectrum of Pitch Rate');
-% Don't limit xlim here to see the full range
-
-% Plot frequency spectrum of pitch rate - Low Frequency Detail
-ax_pitch = axes('Parent', tab8, 'Position', [0.1, 0.53, 0.8, 0.18]);
-plot(f_rads, P, 'b-', 'LineWidth', 1.5);
-grid on;
-xlabel('Frequency (rad/s)');
-ylabel('Magnitude');
-title('Low Frequency Detail of Pitch Rate');
-xlim([0 20*2*pi]);  % Show detail of low frequencies (0-20 Hz in rad/s)
-
-% Plot frequency spectrum of nozzle angle - Full Range
-ax_nozzle_full = axes('Parent', tab8, 'Position', [0.1, 0.28, 0.8, 0.18]);
-plot(f_rads, P_nozzle, 'g-', 'LineWidth', 1.5);
-grid on;
-xlabel('Frequency (rad/s)');
-ylabel('Magnitude');
-title('Full Frequency Spectrum of Nozzle Deflection Angle');
-% Don't limit xlim here to see the full range
-
-% Plot frequency spectrum of nozzle angle - Low Frequency Detail
-ax_nozzle = axes('Parent', tab8, 'Position', [0.1, 0.03, 0.8, 0.18]);
-plot(f_rads, P_nozzle, 'g-', 'LineWidth', 1.5);
-grid on;
-xlabel('Frequency (rad/s)');
-ylabel('Magnitude');
-title('Low Frequency Detail of Nozzle Deflection Angle');
-xlim([0 20*2*pi]);  % Show detail of low frequencies (0-20 Hz in rad/s)
-
-% If we have sufficient sampling to see 158 Hz, add a plot focused on that region
-if nyquist_freq > 200
-    % Add a new tab specifically for high-frequency analysis
-    tab9 = uitab(tabgp, 'Title', 'High Freq Analysis');
-    
-    % Plot pitch rate spectrum around 158 Hz
-    ax_pitch_high = axes('Parent', tab9, 'Position', [0.1, 0.55, 0.8, 0.35]);
-    plot(f_rads, P, 'b-', 'LineWidth', 1.5);
-    grid on;
-    xlabel('Frequency (rad/s)');
-    ylabel('Magnitude');
-    title('Pitch Rate Spectrum - High Frequency Region');
-    xlim([100*2*pi 200*2*pi]);  % 100-200 Hz range in rad/s
-    
-    % Plot nozzle angle spectrum around 158 Hz
-    ax_nozzle_high = axes('Parent', tab9, 'Position', [0.1, 0.1, 0.8, 0.35]);
-    plot(f_rads, P_nozzle, 'g-', 'LineWidth', 1.5);
-    grid on;
-    xlabel('Frequency (rad/s)');
-    ylabel('Magnitude');
-    title('Nozzle Angle Spectrum - High Frequency Region');
-    xlim([100*2*pi 200*2*pi]);  % 100-200 Hz range in rad/s
-
-    % Add a note showing the conversion between Hz and rad/s for the region of interest
-    annotation(tab9, 'textbox', [0.1, 0.01, 0.8, 0.05], ...
-        'String', sprintf('Note: 158 Hz ≈ %.1f rad/s', 158*2*pi), ...
-        'EdgeColor', 'none', 'HorizontalAlignment', 'center', 'FontSize', 10);
-end
-
-% Print dominant frequencies to command window
-fprintf('\n=== Dominant Oscillation Frequencies ===\n');
-fprintf('Pitch Rate Dominant Frequencies: %s Hz (%s rad/s)\n', ...
-    strjoin(arrayfun(@(x) sprintf('%.2f', x), top_freq_pitch, 'UniformOutput', false), ', '), ...
-    strjoin(arrayfun(@(x) sprintf('%.2f', x*2*pi), top_freq_pitch, 'UniformOutput', false), ', '));
-fprintf('Nozzle Angle Dominant Frequencies: %s Hz (%s rad/s)\n', ...
-    strjoin(arrayfun(@(x) sprintf('%.2f', x), top_freq_nozzle, 'UniformOutput', false), ', '), ...
-    strjoin(arrayfun(@(x) sprintf('%.2f', x*2*pi), top_freq_nozzle, 'UniformOutput', false), ', '));
-
-% --- START: Updated Data Export Section ---
-
-% Save trajectory data for Python visualization
-sim_fps = 1/Sim.Timestep;          % Original simulation FPS
-target_fps = 60;                   % Desired output FPS (Changed from 100)
-downsample_factor = round(sim_fps/target_fps);
-
-% Downsample data for 60 FPS
+% Sampled indices for downsampling
 sampled_indices = 1:downsample_factor:length(t);
+
+% Time vector for exported data
+t_export = t(sampled_indices);
+
+% Position and velocity data
+pos_x_m = Xe(sampled_indices, 1);
+pos_y_m = Xe(sampled_indices, 2);
+pos_z_m = Xe(sampled_indices, 3);
+vel_x_m_s = Ve(sampled_indices, 1);
+vel_y_m_s = Ve(sampled_indices, 2);
+vel_z_m_s = Ve(sampled_indices, 3);
+
+% Body-frame velocities
+Vb_sampled = Vb(sampled_indices, :);
+
+% Extract nozzle angle and command
+nozzle_angle_rad = nozzleAngle(sampled_indices);
+
+% Calculate Normalized Thrust
+max_thrust = Actuators.Engine.MaxThrust; % Get max thrust from workspace
+measured_axial_thrust = Fthrust(:,1);    % Extract axial component
+normalized_thrust_full = measured_axial_thrust / max_thrust;
+% Clamp between 0 and 1
+normalized_thrust_full = max(0, min(1, normalized_thrust_full)); 
+% Sample the normalized thrust
+normalized_thrust_sampled = normalized_thrust_full(sampled_indices);
 
 % Interpolate CG data (Hold last value beyond original data range)
 sampled_times = t(sampled_indices);
@@ -479,26 +356,23 @@ cg_body_x_m = rocket_length - cg_from_aft_m; % Distance from nose along body X
 cg_body_y_m = zeros(size(cg_body_x_m));
 cg_body_z_m = zeros(size(cg_body_x_m));
 
-% Get sampled position, pitch, and nozzle angle
-pos_xyz_m = Xe(sampled_indices,:);         % World frame [X, Y, Z_up]
-pitch_rad = theta(sampled_indices);        % Pitch angle (radians)
-nozzle_angle_rad = nozzleAngle(sampled_indices); % Nozzle angle (radians)
-
 % Combine data for export (Focus on data needed for Blender animation)
 trajectory_data = [t(sampled_indices), ...
-                   pos_xyz_m, ...             % World Pos X, Y, Z
-                   pitch_rad, ...             % Body Pitch
+                   pos_x_m, ...             % World Pos X, Y, Z
+                   pos_y_m, ...
+                   pos_z_m, ...
+                   theta(sampled_indices), ...        % Pitch angle (radians)
                    cg_body_x_m, ...           % CG X relative to nose
                    cg_body_y_m, ...           % CG Y relative to nose
                    cg_body_z_m, ...           % CG Z relative to nose
-                   nozzle_angle_rad];         % Nozzle Angle
+                   nozzle_angle_rad, ...      % Nozzle Angle
+                   normalized_thrust_sampled]; % Normalized Thrust (0-1)
 
 % Create table with explicit headers for Blender script
 trajectory_table = array2table(trajectory_data, ...
     'VariableNames', {'time_s', 'pos_x_m', 'pos_y_m', 'pos_z_m', ...
-                     'pitch_rad', ...
-                     'cg_body_x_m', 'cg_body_y_m', 'cg_body_z_m', ...
-                     'nozzle_angle_rad'});
+                      'pitch_rad', 'cg_body_x_m', 'cg_body_y_m', 'cg_body_z_m', ...
+                      'nozzle_angle_rad', 'thrust_normalized'}); % Added thrust_normalized header
 
 % Get the root directory path and construct absolute file path
 scriptPath = mfilename('fullpath');
@@ -515,9 +389,7 @@ end
 % Construct full file path and save CSV
 resultsFilePath = fullfile(resultsFolder, 'rocket_trajectory_60fps.csv'); % Changed filename
 writetable(trajectory_table, resultsFilePath);
-fprintf('\nExported trajectory data to %s\n', resultsFilePath);
-
-% --- END: Updated Data Export Section ---
+fprintf('\nExported trajectory data (including normalized thrust) to %s\n', resultsFilePath);
 
 % Tab 10: Controller Information
 controllerTab = uitab(tabgp, 'Title', 'Controller Info');
@@ -645,13 +517,18 @@ title(ax1,'Pitch Angle vs Command');
 legend(ax1,'Actual','Command','Location','best');
 
 
-% 2) Nozzle angle vs time
+% 2) Nozzle angle vs time (Modified)
 ax2 = nexttile(tlo, 2);
-plot(ax2, t, nozzleAngle*180/pi, 'b-', 'LineWidth', 2);
+plot(ax2, t, nozzleAngle*180/pi, 'b-', 'LineWidth', 2); hold(ax2,'on'); % Actual
+plot(ax2, t, nozzleCmd*180/pi/4, 'b--', 'LineWidth', 1.5);           % PID Command (scaled)
+plot(ax2, t, nozzleFeedforward*180/pi/4, 'c-.', 'LineWidth', 1.5);      % Feedforward (scaled)
+plot(ax2, t, nozzleCmdTotal*180/pi/4, 'm:', 'LineWidth', 1.5);         % Total Command (scaled)
+hold(ax2,'off');
 grid(ax2,'on');
 xlabel(ax2,'Time (s)');
 ylabel(ax2,'Angle (°)');
-title(ax2,'Nozzle Deflection Angle');
+title(ax2,'Nozzle Deflection Angle vs Commands');
+legend(ax2, 'Actual', 'PID Command', 'Feedforward', 'Total Command', 'Location', 'best'); % Added legend
 
 
 % Annotate initial pitch rate

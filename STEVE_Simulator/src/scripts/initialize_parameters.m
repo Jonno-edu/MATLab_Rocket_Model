@@ -6,8 +6,8 @@ Sim.Timestep = 0.0001;
 Sim.Time = 60*5;
 
 Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
-Initial.Conditions.tiltAngle = deg2rad(75);         % Initial pitch [deg]
-Initial.Conditions.pitchRate = (0.55);      % Pitch rate [deg/s]
+Initial.Conditions.tiltAngle = deg2rad(74.5);         % Initial pitch [deg]
+Initial.Conditions.pitchRate = (0.49);      % Pitch rate [deg/s]
 Initial.Conditions.V0 = 0;                       % Initial velocity [m/s]
 Initial.Conditions.h0 = (-1)*0;                  % Initial altitude [m]
 
