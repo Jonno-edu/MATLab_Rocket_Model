@@ -12,6 +12,7 @@ rocket_name = "RocketBody"  # Base pose: Points LOCAL Z up (nose direction)
 cg_name = "CG_Empty"        # Follows world trajectory of CG
 nozzle_name = "Nozzle"      # Origin at pivot point, PARENTED TO ROCKETBODY
 trajectory_name = "RocketTrajectory"  # Name for the static trajectory curve
+flame_name = "Rocket Flame Diamond Shock" # Name of the flame object to scale
 
 # Trajectory visualization settings
 CREATE_TRAJECTORY_CURVE = True       # Set to True to create static trajectory spline
@@ -23,6 +24,7 @@ TRAJECTORY_THICKNESS = 0.05          # Thickness of the trajectory curve
 # Rocket properties
 ROCKET_LENGTH_M = 9.5418    # Total rocket length in meters
 nozzle_angle_multiplier = 1  # Multiplier for nozzle angle (if needed)
+flame_scale_multiplier = 0.15345 # Multiplier for flame scale (if needed)
 # --- END USER SETTINGS ---
 
 # Get the objects
@@ -30,6 +32,7 @@ try:
     rocket = bpy.data.objects[rocket_name]
     cg = bpy.data.objects[cg_name]
     nozzle = bpy.data.objects[nozzle_name]
+    flame = bpy.data.objects[flame_name] # Get the flame object
 except KeyError as e:
     print(f"Error: Object '{e}' not found. Check names in Blender.")
     raise # Stop script
@@ -43,6 +46,7 @@ def clear_animation(obj):
 clear_animation(rocket)
 clear_animation(cg)
 clear_animation(nozzle)
+clear_animation(flame) # Clear flame animation
 
 # Function to create a trajectory curve from points
 def create_trajectory_curve(points, name="RocketTrajectory"):
@@ -98,6 +102,7 @@ try:
             col_cg_by = header.index('cg_body_y_m')
             col_cg_bz = header.index('cg_body_z_m')
             col_nozzle = header.index('nozzle_angle_rad')
+            col_thrust_norm = header.index('thrust_normalized') # Get thrust column index
 
         except (StopIteration, ValueError, KeyError) as e:
             print(f"Error reading header or finding required columns: {e}.\n"
@@ -148,6 +153,7 @@ try:
                     cg_from_nose_y = float(row[col_cg_by])
                     cg_from_nose_z = float(row[col_cg_bz])
                     sim_nozzle_angle_rad = float(row[col_nozzle])
+                    thrust_normalized = float(row[col_thrust_norm]) # Read normalized thrust
 
                     # --- Apply Transformations ---
 
@@ -179,12 +185,19 @@ try:
                     nozzle.rotation_mode = 'XYZ'
                     nozzle.rotation_euler = (0, nozzle_global_angle_rad, 0)
                     nozzle.keyframe_insert(data_path="rotation_euler", frame=frame)
+                    
+                    # 5. Scale Flame based on Normalized Thrust
+                    # Assuming flame's default scale is (1,1,1) and it points down Z
+                    # We scale the Z axis based on thrust. Adjust axis if needed.
+                    flame.scale = (flame_scale_multiplier, flame_scale_multiplier*thrust_normalized, flame_scale_multiplier) 
+                    flame.keyframe_insert(data_path="scale", frame=frame)
 
                     # Debug info (every 100th frame)
-                    if i % 100 == 0:
+                    if i % 1000 == 0:
                         print(f"Frame {frame}: CG at ({sim_pos_x:.2f}, {sim_pos_y:.2f}, {sim_pos_z:.2f}), "
                               f"Pitch={sim_pitch_rad*180/math.pi:.1f}°, "
-                              f"CG offset from nose={cg_from_nose_x:.3f}m")
+                              f"CG offset from nose={cg_from_nose_x:.3f}m, "
+                              f"ThrustNorm={thrust_normalized:.2f}") # Added thrust to debug
 
                     frame += 1
 
