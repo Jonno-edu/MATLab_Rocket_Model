@@ -157,8 +157,8 @@ alpha_modified = alpha(3:end);  % Skip first 2 values
 t_alpha = t(3:end);             % Matching time vector for modified alpha
 
 % Adjust layout for 4 plots instead of 3
-plot_height = 0.19;             % Reduced height for each plot
-vertical_gap = 0.04;            % Reduced gap between plots
+plot_height = 0.17;             % Reduced height for each plot
+vertical_gap = 0.06;            % Reduced gap between plots
 
 % Nozzle Angle (bottom plot)
 axes('Parent', tab3, 'Position', [0.1, 0.03, 0.8, plot_height]);
@@ -166,7 +166,7 @@ plot(t, nozzleAngle*180/pi, 'b-', 'LineWidth', 2); hold on;
 plot(t, nozzleCmd*180/pi/4, 'b--', 'LineWidth', 1.5);
 plot(t, nozzleFeedforward*180/pi/4, 'c-.', 'LineWidth', 1.5);
 plot(t, nozzleCmdTotal*180/pi/4, 'm:', 'LineWidth', 1.5);
-grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
+grid on;  xlabel('Time (s)'); ylabel('Angle (deg)');
 title('Nozzle Deflection Angle');
 legend('Actual', 'Command', 'Feedforward', 'Total Cmd', 'Location', 'best');
 
@@ -174,21 +174,21 @@ legend('Actual', 'Command', 'Feedforward', 'Total Cmd', 'Location', 'best');
 axes('Parent', tab3, 'Position', [0.1, 0.03 + plot_height + vertical_gap, 0.8, plot_height]);
 plot(t, w(:,2)*180/pi, 'r-', 'LineWidth', 2); hold on;
 plot(t, thetadotCmd*180/pi, 'r--', 'LineWidth', 1.5);
-grid on; xlabel('Time (s)'); ylabel('Rate (deg/s)');
+grid on; ylabel('Rate (deg/s)');
 title('Pitch Rate (omega_y)');
 legend('Actual', 'Command', 'Location', 'best');
 
 % Angle of Attack (third from bottom) - using modified data
 axes('Parent', tab3, 'Position', [0.1, 0.03 + 2*(plot_height + vertical_gap), 0.8, plot_height]);
 plot(t_alpha, alpha_modified*180/pi, 'm-', 'LineWidth', 2);
-grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
+grid on; ylabel('Angle (deg)');
 title('Angle of Attack');
 
 % Pitch Angle (top plot)
 axes('Parent', tab3, 'Position', [0.1, 0.03 + 3*(plot_height + vertical_gap), 0.8, plot_height]);
 plot(t, theta*180/pi, 'g-', 'LineWidth', 2); hold on;
 plot(t, thetaCmd*180/pi, 'g--', 'LineWidth', 1.5);
-grid on; xlabel('Time (s)'); ylabel('Angle (deg)');
+grid on; ylabel('Angle (deg)');
 title('Pitch Angle (theta)');
 legend('Actual', 'Command', 'Location', 'best');
 
@@ -542,3 +542,5 @@ b = boxchart(ax3, nozzleAngle*180/pi, 'Orientation','horizontal');  % Horizontal
 grid(ax3, 'on');
 xlabel(ax3, 'Angle (°)');
 title(ax3, 'Nozzle Angle Distribution');
+
+fprintf('\n--- Simulation and Visualization Complete ---\n');

@@ -10,6 +10,7 @@ Initial.Conditions.tiltAngle = deg2rad(74.5);         % Initial pitch [deg]
 Initial.Conditions.pitchRate = (0.49);      % Pitch rate [deg/s]
 Initial.Conditions.V0 = 0;                       % Initial velocity [m/s]
 Initial.Conditions.h0 = (-1)*0;                  % Initial altitude [m]
+Actuators.Engine.BurnTime = 60;
 
 Wind.shear = 0.1;                                 % Wind shear [m/s]
 
@@ -30,6 +31,8 @@ massDataFilePath = fullfile(projectRoot, 'data', 'aero', 'STeVe V1 No Fins.xlsx'
 contourFilePath = fullfile(projectRoot, 'data', 'parameters', 'STeVe-Contour.xlsx');
 % Path to the pre-processed Aero MAT file
 aeroMatFilePath = fullfile('/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/STeVe_Data', 'CombinedAeroData_Grid.mat');
+% Path to Thrust Curve Excel file
+thrustDataFilePath = fullfile(projectRoot, 'STeVe_Data', 'UTF-8Thrust Curve.xlsx');
 
 %% Import Mass Data (Verify Time Spacing First)
 if ~exist('STeVeV1NoFins', 'var')
@@ -153,7 +156,7 @@ MassData.dIdt_Z = gradient(MassData.MOI_Z, timeStep); % Derivative of averaged M
 
 % No need to average dIdt again as MOI_Y and MOI_Z were already averaged
 
-Actuators.Engine.BurnTime = double(MassData.Time(end));    % Burn time in seconds
+%Actuators.Engine.BurnTime = double(MassData.Time(end));    % Burn time in seconds
 fprintf('Calculated Burn Time: %.3f s\n', Actuators.Engine.BurnTime);
 
 %% Create Inertia Tensor and Change-in-Inertia Tensor
@@ -186,6 +189,30 @@ PrelookupData.Tables.dIdt_Z = MassData.dIdt_Z;
 PrelookupData.Tables.InertialTensor = inertia_tensor;
 PrelookupData.Tables.dInertialTensor = d_inertia_tensor;
 PrelookupData.TimeStep = timeStep;  % Save time step for converting time to index
+%% Import Thrust Curve Data (Pressure-Dependent)
+fprintf('\nLoading Thrust Curve data from Excel...\n');
+thrustCurveFilePath = fullfile(projectRoot, 'STeVe_Data', 'UTF-8Thrust Curve.xlsx');
+if exist(thrustCurveFilePath, 'file')
+    opts_thrust = detectImportOptions(thrustCurveFilePath);
+    % Assuming headers are 'Pressure (Pa)' and 'Thrust (N)' and data starts row 2
+    opts_thrust.VariableNames = {'Pressure_Pa', 'Thrust_N'}; % Use valid MATLAB variable names
+    opts_thrust.DataRange = 'A2'; % Adjust if data starts elsewhere
+    opts_thrust.VariableTypes = {'double', 'double'};
+    thrustTable = readtable(thrustCurveFilePath, opts_thrust);
+    
+    % --- Sort the table by Pressure in ascending order ---
+    thrustTable = sortrows(thrustTable, 'Pressure_Pa');
+    % -----------------------------------------------------
+
+    % Create Lookup Structure based on Pressure
+    ThrustLookupData.Breakpoints.Pressure = single(thrustTable.Pressure_Pa);
+    ThrustLookupData.Tables.Thrust = single(thrustTable.Thrust_N);
+    
+    fprintf('  Pressure-dependent thrust curve data loaded (%d points).\n', height(thrustTable));
+else
+    warning('Thrust curve Excel file not found: %s. Thrust lookup table not created.', thrustCurveFilePath);
+    ThrustLookupData = []; % Create an empty variable to avoid errors later
+end
 
 %% Create complete RocketAero structure
 RocketAero.Physical = RocketAeroPhysical;
@@ -195,9 +222,9 @@ RocketAero.AeroData = AeroData; % Add the loaded AeroData here
 fprintf('\nExporting data to workspace and saving RocketSimData.mat...\n');
 % Export to base workspace
 assignin('base', 'PrelookupData', PrelookupData);
+assignin('base', 'ThrustLookupData', ThrustLookupData); % Export ThrustLookupData
 assignin('base', 'Initial', Initial);
 assignin('base', 'Actuators', Actuators);
-% assignin('base', 'AeroData', AeroData); % Redundant if RocketAero is used
 assignin('base', 'RocketAero', RocketAero);
 assignin('base', 'Mach_Breakpoints', Mach_Breakpoints);
 assignin('base', 'Alpha_Breakpoints', Alpha_Breakpoints);
@@ -205,8 +232,8 @@ assignin('base', 'Ref_Area', RocketAeroPhysical.Reference_Area); % Keep for conv
 
 % Save to MAT file for use with the AerodynamicsSystem class or direct loading
 % Note: AeroData is saved within RocketAero now. Add it explicitly if needed separately.
-save('RocketSimData.mat', 'PrelookupData', 'Initial', 'Actuators', 'RocketAero', ...
-    'Mach_Breakpoints', 'Alpha_Breakpoints', 'Ref_Area');
+save('RocketSimData.mat', 'PrelookupData', 'ThrustLookupData', 'Initial', 'Actuators', 'RocketAero', ...
+     'Mach_Breakpoints', 'Alpha_Breakpoints', 'Ref_Area');
 
 %% Final Validation Message
 fprintf('\n--- Initialization Complete ---\n');
