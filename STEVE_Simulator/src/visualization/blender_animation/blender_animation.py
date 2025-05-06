@@ -18,7 +18,7 @@ flame_name = "Rocket Flame Diamond Shock" # Name of the flame object to scale
 CREATE_TRAJECTORY_CURVE = True       # Set to True to create static trajectory spline
 TRAJECTORY_COLOR = (1.0, 1.0, 0.0, 1.0)  # Bright light yellow (R,G,B,A)
 # Or using hex conversion:
-# HEX: #FFFF33 converted to RGBA (1.0, 1.0, 0.2, 1.0)
+# HEX: #FFFF33 converted to RGBA (1.0, 1.0, 0.2, 1.0
 TRAJECTORY_THICKNESS = 0.05          # Thickness of the trajectory curve
 
 # Rocket properties
