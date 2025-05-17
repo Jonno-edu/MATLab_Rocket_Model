@@ -1,35 +1,43 @@
 % run_simulation.m - Main script to run the STEVE rocket simulation
 
+% --- Start with a clean environment ---
+clear;      % Clear workspace variables
+clc;        % Clear command window
+close all;  % Close all open figure windows
+
+fprintf('--- Starting New Simulation Run ---\n');
+
 % Initialize parameters
+disp('Initializing simulation parameters...');
 sim_params = initialize_sim_parameters();
+disp('Initialization of sim_params complete.');
 
 % Load Simulink model
 modelName = 'STEVE_Simulation';
+disp(['Loading Simulink model: ', modelName, '...']);
 load_system(modelName);
+disp('Simulink model loaded.');
 
 % Set simulation time
 simTime = sim_params.Sim.Time;
+disp(['Simulation stop time set to: ', num2str(simTime), ' seconds.']);
 
 % Run simulation
+disp('Starting Simulink simulation...');
 simOut = sim(modelName, 'StopTime', num2str(simTime));
+disp('Simulink simulation finished.');
 
-% Generate CSV for Blender (example: export pitch, time, altitude)
-if isfield(simOut, 'logsout')
-    logsout = simOut.logsout;
-    try
-        t = logsout.getElement('t').Values.Data;
-        pitch = logsout.getElement('pitch').Values.Data;
-        altitude = logsout.getElement('altitude').Values.Data;
-        csvData = [t, pitch, altitude];
-        csvFile = fullfile(sim_params.OutputDataPath, 'trajectory_60fps.csv');
-        writematrix(csvData, csvFile);
-        fprintf('Blender CSV written to: %s\n', csvFile);
-    catch
-        disp('Could not find expected signals in logsout for CSV export.');
-    end
+% --- Generate CSV for Blender using the new function ---
+% You can specify a custom suffix if desired, e.g., '_my_specific_run_60fps'
+blender_csv_success = generate_blender_csv(simOut, sim_params); % Uses default suffix
+
+if blender_csv_success
+    disp('Blender CSV generation was successful.');
 else
-    disp('simOut does not contain logsout. No CSV exported.');
+    disp('Blender CSV generation failed. Check messages above.');
 end
 
-% Plot results
-plot_simulation_results(simOut); 
+% --- Plot results ---
+disp('Calling plot_simulation_results...');
+plot_simulation_results(simOut); % Pass the original simOut
+disp('--- Simulation Run Complete ---');
