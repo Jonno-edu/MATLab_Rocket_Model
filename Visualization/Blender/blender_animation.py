@@ -5,7 +5,7 @@ from mathutils import Vector, Quaternion
 
 # --- USER SETTINGS ---
 # File path to your CSV (make sure it's the one from the corrected MATLAB script)
-csv_file_path = "/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/Simulator_Core/output_data/trajectory_for_blender_60fps.csv"
+csv_file_path = "/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/Simulator_Core/output_data/trajectory_for_blender_60fps_60fps.csv"
 blend_file_path = "/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/Visualization/Blender/RocketAnimation.blend"
 # Object names in Blender
 rocket_name = "RocketBody"  # Base pose: Points LOCAL Z up (nose direction)

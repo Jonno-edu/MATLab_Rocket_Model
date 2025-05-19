@@ -1,3 +1,10 @@
 # Ignore large simulation result files
 STEVE_Simulator/Simulator_Core/output_data/pitch_rate_sweep_results.mat
 STEVE_Simulator/Simulator_Core/output_data/tilt_pitch_rate_sweep_results.mat
+
+# Ignore Python virtual environments
+venv/
+STEVE_Simulator/rocket_env/
+
+# Ignore Blender temporary/cache files
+STEVE_Simulator/Visualization/Blender/*.blend1

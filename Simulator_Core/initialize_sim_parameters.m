@@ -10,19 +10,17 @@ projectRoot = fileparts(fileparts(mfilename('fullpath'))); % Goes up two levels 
 
 %% System Parameters
 Sim.Timestep = 0.0001;
-Sim.Time = 30;
+Sim.Time = 2;
 sim_params.Sim = Sim;
 
 Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
 Initial.Conditions.tiltAngle = deg2rad(74.5);    % Initial pitch [deg]
 Initial.Conditions.pitchRate = (0.49);           % Pitch rate [deg/s]
 Initial.Conditions.V0 = 0;                       % Initial velocity [m/s]
-Initial.Conditions.h0 = 0;                       % Initial altitude [m] (positive up)
+Initial.Conditions.h0 = (-1)*0;                       % Initial altitude [m] (positive up)
 sim_params.Initial = Initial;
 
 Actuators.Engine.BurnTime = 60;
-Actuators.Nozzle.NaturalFreq = 1000;             % wn_act [rad/s]
-Actuators.Nozzle.DampingRatio = 0.707;           % z_act
 Actuators.Nozzle.MaxDeflection = deg2rad(8);     % maxdef_nozzle [rad]
 Actuators.Nozzle.RateLimit = deg2rad(150);       % rate_lim_nozzle [rad/s]
 Actuators.Engine.MaxThrust = (27.6*10^3)*1;      % max_thrust [N]
