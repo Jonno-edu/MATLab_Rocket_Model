@@ -5,7 +5,7 @@ from mathutils import Vector, Quaternion
 
 # --- USER SETTINGS ---
 # File path to your CSV (make sure it's the one from the corrected MATLAB script)
-csv_file_path = "/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/Simulator_Core/output_data/trajectory_for_blender_60fps_60fps.csv"
+csv_file_path = "/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/Simulator_Core/output_data/trajectory_for_blender_60fps.csv"
 blend_file_path = "/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/Visualization/Blender/RocketAnimation.blend"
 # Object names in Blender
 rocket_name = "RocketBody"  # Base pose: Points LOCAL Z up (nose direction)
@@ -102,7 +102,7 @@ try:
             col_cg_by = header.index('cg_body_y_m')
             col_cg_bz = header.index('cg_body_z_m')
             col_nozzle = header.index('nozzle_angle_rad')
-            col_thrust_norm = header.index('thrust_normalized') # Get thrust column index
+            col_thrust_norm = header.index('thrust_normalized')
 
         except (StopIteration, ValueError, KeyError) as e:
             print(f"Error reading header or finding required columns: {e}.\n"
@@ -149,7 +149,7 @@ try:
                     sim_pos_y = float(row[col_py])
                     sim_pos_z = float(row[col_pz]) + ROCKET_LENGTH_M
                     sim_pitch_rad = float(row[col_pitch])
-                    cg_from_nose_x = float(row[col_cg_bx])
+                    cg_from_nose_x = ROCKET_LENGTH_M - float(row[col_cg_bx])
                     cg_from_nose_y = float(row[col_cg_by])
                     cg_from_nose_z = float(row[col_cg_bz])
                     sim_nozzle_angle_rad = float(row[col_nozzle])
