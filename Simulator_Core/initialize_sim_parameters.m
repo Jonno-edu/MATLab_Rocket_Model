@@ -10,7 +10,7 @@ projectRoot = fileparts(fileparts(mfilename('fullpath'))); % Goes up two levels 
 
 %% System Parameters
 Sim.Timestep = 0.0001;
-Sim.Time = 2;
+Sim.Time = 30;
 sim_params.Sim = Sim;
 
 Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]

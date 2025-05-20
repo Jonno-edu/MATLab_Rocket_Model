@@ -29,13 +29,8 @@ disp('Simulink simulation finished.');
 
 % --- Generate CSV for Blender using the new function ---
 % You can specify a custom suffix if desired, e.g., '_my_specific_run_60fps'
-blender_csv_success = generate_blender_csv(simOut, sim_params); % Uses default suffix
+generate_blender_csv(simOut); % Uses default suffix
 
-if blender_csv_success
-    disp('Blender CSV generation was successful.');
-else
-    disp('Blender CSV generation failed. Check messages above.');
-end
 
 % --- Plot results ---
 disp('Calling plot_simulation_results...');
