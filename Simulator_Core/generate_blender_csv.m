@@ -21,8 +21,8 @@ pitch_rad = plant_data.body_angles.theta.Data(:);
 cg_body_x = plant_data.CG.Data(:);
 cg_body_y = zeros(size(t));
 cg_body_z = zeros(size(t));
-nozzle_angle_rad = logsout.getElement("Y_nozzle_angle").Values.Data(:);
-thrust = logsout.getElement('engineThrust').Values.Data(:);
+nozzle_angle_rad = logsout.getElement("Y_nozzle_angle").Values.Data;
+thrust = logsout.getElement('engineThrust').Values.Data;
 max_thrust = evalin('base', 'Actuators.Engine.MaxThrust');
 if max_thrust > 0
     thrust_normalized = thrust / max_thrust;

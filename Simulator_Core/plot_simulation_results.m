@@ -53,18 +53,12 @@ w_data = plant_data.w.Data;
 t_w = plant_data.w.Time;
 q = rad2deg(w_data(:,2)); % Second column is q
 
-pitch_controller_cmd = rad2deg(logsout.getElement('pitch_controller_cmd').Values.Data);
-t_pitch_controller_cmd = logsout.getElement('pitch_controller_cmd').Values.Time;
-
-hold on;
-% Plot pitch rate controller command (dotted line)
-plot(t_pitch_controller_cmd, pitch_controller_cmd, 'k:');
 
 plot(t_w, q, 'b');
 title('Pitch Rate');
 ylabel('q (deg/s)');
 
-legend('Controller q_{cmd}', 'Actual q');
+legend('Actual q');
 
 % 4. Nozzle commands and actual angle
 subplot(4,1,4);
@@ -72,27 +66,27 @@ hold on;
 grid on;
 
 % Get commands and actual angle
-ff_cmd = rad2deg(logsout.getElement('feedforward_cmd').Values.Data);
-t_ff = logsout.getElement('feedforward_cmd').Values.Time;
-
-ctrl_cmd = rad2deg(logsout.getElement('pitchrate_controller_cmd').Values.Data);
-t_ctrl = logsout.getElement('pitchrate_controller_cmd').Values.Time;
-
-total_cmd = rad2deg(logsout.getElement('total_nozzle_angle_rad').Values.Data);
-t_total = logsout.getElement('total_nozzle_angle_rad').Values.Time;
+% ff_cmd = rad2deg(logsout.getElement('feedforward_cmd').Values.Data);
+% t_ff = logsout.getElement('feedforward_cmd').Values.Time;
+% 
+% ctrl_cmd = rad2deg(logsout.getElement('pitchrate_controller_cmd').Values.Data);
+% t_ctrl = logsout.getElement('pitchrate_controller_cmd').Values.Time;
+% 
+total_cmd = rad2deg(logsout.getElement('<nozzle_angle_cmd>').Values.Data);
+t_total = logsout.getElement('<nozzle_angle_cmd>').Values.Time;
 
 nozzle_angle = rad2deg(logsout.getElement('Y_nozzle_angle').Values.Data);
 t_nozzle = logsout.getElement('Y_nozzle_angle').Values.Time;
 
-plot(t_ff, ff_cmd, 'g--');
-plot(t_ctrl, ctrl_cmd, 'r--');
+% plot(t_ff, ff_cmd, 'g--');
+% plot(t_ctrl, ctrl_cmd, 'r--');
 plot(t_total, total_cmd, 'm--');
 plot(t_nozzle, nozzle_angle, 'b');
 
 title('Nozzle Angles');
 xlabel('Time (s)');
 ylabel('Angle (deg)');
-legend('Feedforward', 'Controller', 'Total', 'Actual');
+legend('Command', 'Actual');
 
 % Create a new figure for forces and moments (reorganized)
 figure;

@@ -12,6 +12,8 @@ disp('Initializing simulation parameters...');
 sim_params = initialize_sim_parameters();
 disp('Initialization of sim_params complete.');
 
+LQR_Controller_Design
+
 % Load Simulink model
 modelName = 'STEVE_Simulation';
 disp(['Loading Simulink model: ', modelName, '...']);
@@ -29,7 +31,7 @@ disp('Simulink simulation finished.');
 
 % --- Generate CSV for Blender using the new function ---
 % You can specify a custom suffix if desired, e.g., '_my_specific_run_60fps'
-generate_blender_csv(simOut); % Uses default suffix
+%generate_blender_csv(simOut); % Uses default suffix
 
 
 % --- Plot results ---
