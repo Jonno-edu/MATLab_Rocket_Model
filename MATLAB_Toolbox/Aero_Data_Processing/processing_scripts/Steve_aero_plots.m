@@ -3,7 +3,7 @@ clear; clc; close all;
 
 fprintf('Loading raw aerodynamic data...\n');
 % --- Load Raw Data ---
-excelFilePath = '/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/STeVe_Data/STeVe V1 No Fins.xlsx';
+excelFilePath = '/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/MATLAB_Toolbox/Aero_Data_Processing/raw_data_input/STeVe V1 No Fins.xlsx';
 
 % Import options for "Aero Properties" (0-4 deg)
 optsS2 = spreadsheetImportOptions("NumVariables", 15);
@@ -153,7 +153,7 @@ CombinedAeroData.Info.ExtrapolationMethod = extrapolationMethod;
 fprintf('Data packaged.\n');
 
 % --- Export Data to MAT File ---
-targetFolder = '/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/STeVe_Data';
+targetFolder = '/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/MATLAB_Toolbox/Aero_Data_Processing/generated_aero_data';
 outputFileName = fullfile(targetFolder, 'CombinedAeroData_Grid.mat');
 fprintf('Saving combined data (using %s interpolation) to %s...\n', interpolationMethod, outputFileName);
 save(outputFileName, 'CombinedAeroData'); % CAPower_Off will not be in this structure
