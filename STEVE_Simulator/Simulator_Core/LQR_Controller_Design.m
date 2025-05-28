@@ -5,7 +5,7 @@
 % Physical parameters (SI units)
 m = 974;             % rocket mass (kg)
 rho = 1;            % air density (kg/m³) - varies with altitude
-V = 500;              % velocity (m/s)
+V = 100;              % velocity (m/s)
 S = 0.200296;              % reference area (m²)
 L = 9.542;              % reference length (m)
 I = 19000;             % moment of inertia about pitch axis (kg⋅m²)
@@ -35,9 +35,9 @@ fprintf('d4 = %.4f (1/s) - Pitch damping\n', d4);
 fprintf('d5 = %.4f (1/s) - Thrust normal force coefficient\n', d5);
 
 %% Actuator Model Parameters
-% Typical TVC gimbal actuator (hydraulic/electric servo)
-omega_n_act = 20;        % Natural frequency (rad/s) - 20 rad/s ≈ 3 Hz bandwidth
-zeta_act = 0.5858;          % Damping ratio (well-damped)
+% Typical TVC gimbal actuator 
+omega_n_act = 62;        % Natural frequency (rad/s)
+zeta_act = 0.5858;          % Damping ratio 
 actuator_gain = 1;       % Steady-state gain
 
 fprintf('\nActuator Parameters:\n');

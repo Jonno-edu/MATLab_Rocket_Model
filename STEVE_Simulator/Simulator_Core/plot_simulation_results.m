@@ -87,6 +87,7 @@ title('Nozzle Angles');
 xlabel('Time (s)');
 ylabel('Angle (deg)');
 legend('Command', 'Actual');
+% legend('Actual');
 
 % Create a new figure for forces and moments (reorganized)
 figure;
