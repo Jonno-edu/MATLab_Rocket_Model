@@ -13,7 +13,7 @@ Sim.Timestep = 0.0001;
 Sim.Time = 5;
 sim_params.Sim = Sim;
 
-Initial.Conditions.theta0 = deg2rad(85);         % Initial pitch [deg]
+Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
 Initial.Conditions.tiltAngle = deg2rad(74.5);    % Initial pitch [deg]
 Initial.Conditions.pitchRate = (0.49);           % Pitch rate [deg/s]
 Initial.Conditions.V0 = 0;                       % Initial velocity [m/s]

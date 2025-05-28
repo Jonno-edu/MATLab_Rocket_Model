@@ -31,7 +31,7 @@ disp('Simulink simulation finished.');
 
 % --- Generate CSV for Blender using the new function ---
 % You can specify a custom suffix if desired, e.g., '_my_specific_run_60fps'
-%generate_blender_csv(simOut); % Uses default suffix
+generate_blender_csv(simOut); % Uses default suffix
 
 
 % --- Plot results ---
