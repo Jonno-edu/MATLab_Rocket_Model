@@ -8,30 +8,10 @@ fprintf('--- Initializing Simulation Parameters ---\n');
 % Define project root assuming this script is in Simulator_Core
 projectRoot = fileparts(fileparts(mfilename('fullpath'))); % Goes up two levels from Simulator_Core
 
-%% System Parameters
-Sim.Timestep = 0.0001;
-Sim.Time = 5;
-sim_params.Sim = Sim;
-
-Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
-Initial.Conditions.tiltAngle = deg2rad(74.5);    % Initial pitch [deg]
-Initial.Conditions.pitchRate = (0.49);           % Pitch rate [deg/s]
-Initial.Conditions.V0 = 0;                       % Initial velocity [m/s]
-Initial.Conditions.h0 = (-1)*0;                       % Initial altitude [m] (positive up)
-sim_params.Initial = Initial;
-
-Actuators.Engine.BurnTime = 60;
-Actuators.Nozzle.MaxDeflection = deg2rad(8);     % maxdef_nozzle [rad]
-Actuators.Nozzle.RateLimit = deg2rad(150);       % rate_lim_nozzle [rad/s]
-Actuators.Engine.MaxThrust = (27.6*10^3)*1;      % max_thrust [N]
-sim_params.Actuators = Actuators;
-
-Wind.shear = 0.1;                                % Wind shear [m/s]
-sim_params.Wind = Wind;
 
 %% File Paths (relative to projectRoot)
 % Input data for the simulator core
-massDataFilePath      = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'mass_properties.xlsx');
+heavySteveDataFilePath      = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'Heavy_STeVe_Data.xlsx');
 contourFilePath       = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'rocket_geometry.xlsx');
 aeroMatFilePath       = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'aero_lookup_data.mat');
 thrustDataFilePath    = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'thrust_curve.xlsx');
@@ -40,30 +20,50 @@ controllerConfigPath  = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'c
 % Output data path
 sim_params.OutputDataPath = fullfile(projectRoot, 'Simulator_Core', 'output_data');
 
-%% Load Controller Configuration (if it exists)
-if exist(controllerConfigPath, 'file')
-    fprintf('Loading controller configuration from: %s\n', controllerConfigPath);
-    load(controllerConfigPath, 'Controller'); % Assuming gains are saved in a struct 'Controller'
-    sim_params.Controller = Controller;
-    fprintf('Controller configuration loaded.\n');
-else
-    warning('Controller configuration file not found: %s. Using default/no control gains.', controllerConfigPath);
-    sim_params.Controller = struct(); % Empty struct or default values
-end
-
 %% Import Mass Data
-fprintf('Loading Mass data from Excel: %s\n', massDataFilePath);
-if exist(massDataFilePath, 'file')
-    opts = detectImportOptions(massDataFilePath, "Sheet", "Mass Properties");
-    opts.DataRange = "A2:F12602"; % Ensure this range is still correct
+fprintf('Loading Mass data from Excel: %s\n', heavySteveDataFilePath);
+if exist(heavySteveDataFilePath, 'file')
+    numsteps = readmatrix(heavySteveDataFilePath, 'Sheet', "Derived Properties", 'Range', "D4:D4");
+    
+    endRow = numsteps + 1;
+    dynamicRange = "A2:F" + endRow;
+    
+    opts = detectImportOptions(heavySteveDataFilePath, "Sheet", "Mass Properties Heavy");
+    opts.DataRange = dynamicRange;
     opts.VariableNames = ["Time", "Mass", "COM_Z", "MOIx_Z", "MOIy_Z", "MOIz_Z"];
-    STeVeV1NoFins = readtable(massDataFilePath, opts);
+    
+    STeVeV1NoFins = readtable(heavySteveDataFilePath, opts);
+    
     dt_mass = diff(STeVeV1NoFins.Time);
     assert(all(abs(dt_mass - 0.005) < 1e-10), 'Mass data time vector not perfectly spaced!');
+    
     fprintf('Mass data loaded.\n');
 else
-    error('Mass data file not found: %s', massDataFilePath);
+    error('Mass data file not found: %s', heavySteveDataFilePath);
 end
+
+
+%% System Parameters
+Sim.Timestep = 0.0001;
+Sim.Time = 150;
+sim_params.Sim = Sim;
+
+Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
+Initial.Conditions.tiltAngle = deg2rad(74.5);    % Initial pitch [deg]
+Initial.Conditions.pitchRate = (0.49);           % Pitch rate [deg/s]
+Initial.Conditions.V0 = 0.1;                     % Initial velocity [m/s]
+Initial.Conditions.h0 = (-1)*0;                  % Initial altitude [m] (positive up)
+sim_params.Initial = Initial;
+
+Actuators.Engine.BurnTime = readmatrix(heavySteveDataFilePath, 'Sheet', "Derived Properties", 'Range', "S4:S4");
+Actuators.Nozzle.MaxDeflection = deg2rad(8);     % maxdef_nozzle [rad]
+Actuators.Nozzle.RateLimit = deg2rad(150);       % rate_lim_nozzle [rad/s]
+Actuators.Engine.MaxThrust = (27.6*10^3)*1;      % max_thrust [N]
+sim_params.Actuators = Actuators;
+
+Wind.shear = 0.1;                                % Wind shear [m/s]
+sim_params.Wind = Wind;
+
 
 %% Load Pre-Processed Aerodynamic Data from MAT file
 fprintf('Loading pre-processed aerodynamic data from: %s\n', aeroMatFilePath);

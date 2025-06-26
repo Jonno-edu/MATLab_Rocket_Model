@@ -5,11 +5,11 @@
 % Physical parameters (SI units)
 m = 974;             % rocket mass (kg)
 rho = 1;            % air density (kg/m³) - varies with altitude
-V = 100;              % velocity (m/s)
+V = 10;              % velocity (m/s)
 S = 0.200296;              % reference area (m²)
 L = 9.542;              % reference length (m)
 I = 19000;             % moment of inertia about pitch axis (kg⋅m²)
-T = 23.6*10^3;            % thrust (N)
+T = 23.6*10^3 * 0.5;            % thrust (N)
 L_arm = 4;          % TVC moment arm from CG to nozzle (m)
 
 % Aerodynamic coefficients (per radian)
