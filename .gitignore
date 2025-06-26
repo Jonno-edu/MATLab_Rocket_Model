@@ -49,3 +49,7 @@ STEVE_Simulator/output/figures/fig_counter.mat
 
 # Ignore large texture files removed from history
 STEVE_Simulator/src/visualization/blender_animation/GOOGLE_SAT_WM.tif
+
+*.mldatx
+
+STEVE_Simulator/Simulator_Core/input_data/~$Heavy_STeVe_Data.xlsx

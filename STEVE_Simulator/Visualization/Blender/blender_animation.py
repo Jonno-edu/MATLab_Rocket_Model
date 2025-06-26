@@ -23,7 +23,7 @@ TRAJECTORY_THICKNESS = 0.05          # Thickness of the trajectory curve
 
 # Rocket properties
 ROCKET_LENGTH_M = 9.5418    # Total rocket length in meters
-nozzle_angle_multiplier = 1  # Multiplier for nozzle angle (if needed)
+nozzle_angle_multiplier = 5  # Multiplier for nozzle angle (if needed)
 flame_scale_multiplier = 0.15345 # Multiplier for flame scale (if needed)
 # --- END USER SETTINGS ---
 

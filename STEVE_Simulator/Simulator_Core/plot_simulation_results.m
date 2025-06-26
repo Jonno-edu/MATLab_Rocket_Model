@@ -2,6 +2,9 @@ function plot_simulation_results(simOut)
 % Simple function to plot rocket attitude and control data
 logsout = simOut.logsout;
 
+% Downsampling factor for faster plotting
+downsample_factor = 20;
+
 % Create figure
 figure;
 
@@ -15,13 +18,23 @@ plant_data = logsout.getElement('PlantData').Values;
 theta = rad2deg(plant_data.body_angles.theta.Data);
 t_theta = plant_data.body_angles.theta.Time;
 
+% Downsample theta data
+idx_theta = 1:downsample_factor:length(theta);
+theta_ds = theta(idx_theta);
+t_theta_ds = t_theta(idx_theta);
+
 % Get theta command
 cmd_data = logsout.getElement('CMD').Values;
 theta_cmd = rad2deg(cmd_data.ThetaCmd.data);
 t_cmd = cmd_data.ThetaCmd.Time;
 
-plot(t_theta, theta, 'b');
-plot(t_cmd, theta_cmd, 'r--');
+% Downsample command data
+idx_cmd = 1:downsample_factor:length(theta_cmd);
+theta_cmd_ds = theta_cmd(idx_cmd);
+t_cmd_ds = t_cmd(idx_cmd);
+
+plot(t_theta_ds, theta_ds, 'b');
+plot(t_cmd_ds, theta_cmd_ds, 'r--');
 title('Pitch Angle and Command');
 legend('Actual \theta', 'Command \theta');
 ylabel('Angle (deg)');
@@ -38,9 +51,14 @@ if length(alpha) >= 2
 end
 t_alpha = plant_data.alpha.Time;
 
-plot(t_alpha, alpha, 'b');
-plot([t_alpha(1) t_alpha(end)], [5 5], 'r--');
-plot([t_alpha(1) t_alpha(end)], [-5 -5], 'r--');
+% Downsample alpha data
+idx_alpha = 1:downsample_factor:length(alpha);
+alpha_ds = alpha(idx_alpha);
+t_alpha_ds = t_alpha(idx_alpha);
+
+plot(t_alpha_ds, alpha_ds, 'b');
+plot([t_alpha_ds(1) t_alpha_ds(end)], [5 5], 'r--');
+plot([t_alpha_ds(1) t_alpha_ds(end)], [-5 -5], 'r--');
 title('Angle of Attack');
 ylabel('\alpha (deg)');
 
@@ -53,11 +71,14 @@ w_data = plant_data.w.Data;
 t_w = plant_data.w.Time;
 q = rad2deg(w_data(:,2)); % Second column is q
 
+% Downsample pitch rate data
+idx_w = 1:downsample_factor:length(q);
+q_ds = q(idx_w);
+t_w_ds = t_w(idx_w);
 
-plot(t_w, q, 'b');
+plot(t_w_ds, q_ds, 'b');
 title('Pitch Rate');
 ylabel('q (deg/s)');
-
 legend('Actual q');
 
 % 4. Nozzle commands and actual angle
@@ -65,29 +86,28 @@ subplot(4,1,4);
 hold on;
 grid on;
 
-% Get commands and actual angle
-% ff_cmd = rad2deg(logsout.getElement('feedforward_cmd').Values.Data);
-% t_ff = logsout.getElement('feedforward_cmd').Values.Time;
-% 
-% ctrl_cmd = rad2deg(logsout.getElement('pitchrate_controller_cmd').Values.Data);
-% t_ctrl = logsout.getElement('pitchrate_controller_cmd').Values.Time;
-% 
 total_cmd = rad2deg(logsout.getElement('<nozzle_angle_cmd>').Values.Data);
 t_total = logsout.getElement('<nozzle_angle_cmd>').Values.Time;
 
 nozzle_angle = rad2deg(logsout.getElement('Y_nozzle_angle').Values.Data);
 t_nozzle = logsout.getElement('Y_nozzle_angle').Values.Time;
 
-% plot(t_ff, ff_cmd, 'g--');
-% plot(t_ctrl, ctrl_cmd, 'r--');
-plot(t_total, total_cmd, 'm--');
-plot(t_nozzle, nozzle_angle, 'b');
+% Downsample nozzle data
+idx_total = 1:downsample_factor:length(total_cmd);
+total_cmd_ds = total_cmd(idx_total);
+t_total_ds = t_total(idx_total);
+
+idx_nozzle = 1:downsample_factor:length(nozzle_angle);
+nozzle_angle_ds = nozzle_angle(idx_nozzle);
+t_nozzle_ds = t_nozzle(idx_nozzle);
+
+plot(t_total_ds, total_cmd_ds, 'm--');
+plot(t_nozzle_ds, nozzle_angle_ds, 'b');
 
 title('Nozzle Angles');
 xlabel('Time (s)');
 ylabel('Angle (deg)');
 legend('Command', 'Actual');
-% legend('Actual');
 
 % Create a new figure for forces and moments (reorganized)
 figure;
@@ -105,13 +125,27 @@ M_thrust  = logsout.getElement('M_thrust').Values.Data;
 t_forces = logsout.getElement('F_total').Values.Time;
 t_moments = logsout.getElement('M_total').Values.Time;
 
+% Downsample force and moment data
+idx_forces = 1:downsample_factor:length(t_forces);
+F_total_ds = F_total(idx_forces,:);
+F_aero_ds = F_aero(idx_forces,:);
+F_thrust_ds = F_thrust(idx_forces,:);
+F_gravity_ds = F_gravity(idx_forces,:);
+t_forces_ds = t_forces(idx_forces);
+
+idx_moments = 1:downsample_factor:length(t_moments);
+M_total_ds = M_total(idx_moments,:);
+M_aero_ds = M_aero(idx_moments,:);
+M_thrust_ds = M_thrust(idx_moments,:);
+t_moments_ds = t_moments(idx_moments);
+
 % Plot X-axis force (vertical)
 subplot(3,1,1);
 hold on; grid on;
-plot(t_forces, F_total(:,1),   'k',  'LineWidth', 1.2); % Fx total
-plot(t_forces, F_aero(:,1),   'b--', 'LineWidth', 1.2); % Fx aero
-plot(t_forces, F_thrust(:,1), 'r--', 'LineWidth', 1.2); % Fx thrust
-plot(t_forces, F_gravity(:,1), 'g--', 'LineWidth', 1.2); % Fx gravity
+plot(t_forces_ds, F_total_ds(:,1),   'k',  'LineWidth', 1.2); % Fx total
+plot(t_forces_ds, F_aero_ds(:,1),   'b--', 'LineWidth', 1.2); % Fx aero
+plot(t_forces_ds, F_thrust_ds(:,1), 'r--', 'LineWidth', 1.2); % Fx thrust
+plot(t_forces_ds, F_gravity_ds(:,1), 'g--', 'LineWidth', 1.2); % Fx gravity
 title('Body X-axis Force (Vertical)');
 ylabel('F_x (N)');
 legend('Total', 'Aerodynamic', 'Thrust', 'Gravity');
@@ -119,10 +153,10 @@ legend('Total', 'Aerodynamic', 'Thrust', 'Gravity');
 % Plot Z-axis force
 subplot(3,1,2);
 hold on; grid on;
-plot(t_forces, F_total(:,3),   'k',  'LineWidth', 1.2); % Fz total
-plot(t_forces, F_aero(:,3),   'b--', 'LineWidth', 1.2); % Fz aero
-plot(t_forces, F_thrust(:,3), 'r--', 'LineWidth', 1.2); % Fz thrust
-plot(t_forces, F_gravity(:,3), 'g--', 'LineWidth', 1.2); % Fz gravity
+plot(t_forces_ds, F_total_ds(:,3),   'k',  'LineWidth', 1.2); % Fz total
+plot(t_forces_ds, F_aero_ds(:,3),   'b--', 'LineWidth', 1.2); % Fz aero
+plot(t_forces_ds, F_thrust_ds(:,3), 'r--', 'LineWidth', 1.2); % Fz thrust
+plot(t_forces_ds, F_gravity_ds(:,3), 'g--', 'LineWidth', 1.2); % Fz gravity
 title('Body Z-axis Force');
 ylabel('F_z (N)');
 legend('Total', 'Aerodynamic', 'Thrust', 'Gravity');
@@ -130,9 +164,9 @@ legend('Total', 'Aerodynamic', 'Thrust', 'Gravity');
 % Plot Y-axis moment (kept as is)
 subplot(3,1,3);
 hold on; grid on;
-plot(t_moments, M_total(:,2),   'k',  'LineWidth', 1.2); % My total
-plot(t_moments, M_aero(:,2),   'b--', 'LineWidth', 1.2); % My aero
-plot(t_moments, M_thrust(:,2), 'r--', 'LineWidth', 1.2); % My thrust
+plot(t_moments_ds, M_total_ds(:,2),   'k',  'LineWidth', 1.2); % My total
+plot(t_moments_ds, M_aero_ds(:,2),   'b--', 'LineWidth', 1.2); % My aero
+plot(t_moments_ds, M_thrust_ds(:,2), 'r--', 'LineWidth', 1.2); % My thrust
 title('Body Y-axis Moment');
 ylabel('M_y (N-m)');
 xlabel('Time (s)');
@@ -145,15 +179,15 @@ set(gcf, 'Name', 'Aerodynamic Forces and Moments');
 % Plot X aerodynamic force
 subplot(3,1,1);
 hold on; grid on;
-plot(t_forces, F_aero(:,1), 'b', 'LineWidth', 1.2); % Fx aero
+plot(t_forces_ds, F_aero_ds(:,1), 'b', 'LineWidth', 1.2); % Fx aero
 title('Aerodynamic Force (X axis)');
 ylabel('F_x Aero (N)');
 
 % Plot Y and Z aerodynamic forces
 subplot(3,1,2);
 hold on; grid on;
-plot(t_forces, F_aero(:,2), 'g', 'LineWidth', 1.2); % Fy aero
-plot(t_forces, F_aero(:,3), 'r', 'LineWidth', 1.2); % Fz aero
+plot(t_forces_ds, F_aero_ds(:,2), 'g', 'LineWidth', 1.2); % Fy aero
+plot(t_forces_ds, F_aero_ds(:,3), 'r', 'LineWidth', 1.2); % Fz aero
 title('Aerodynamic Forces (Y and Z axes)');
 ylabel('Force (N)');
 legend('F_y Aero', 'F_z Aero');
@@ -161,9 +195,9 @@ legend('F_y Aero', 'F_z Aero');
 % Plot aerodynamic moments
 subplot(3,1,3);
 hold on; grid on;
-plot(t_moments, M_aero(:,1), 'b', 'LineWidth', 1.2); % Mx aero
-plot(t_moments, M_aero(:,2), 'r', 'LineWidth', 1.2); % My aero
-plot(t_moments, M_aero(:,3), 'g', 'LineWidth', 1.2); % Mz aero
+plot(t_moments_ds, M_aero_ds(:,1), 'b', 'LineWidth', 1.2); % Mx aero
+plot(t_moments_ds, M_aero_ds(:,2), 'r', 'LineWidth', 1.2); % My aero
+plot(t_moments_ds, M_aero_ds(:,3), 'g', 'LineWidth', 1.2); % Mz aero
 title('Aerodynamic Moments');
 ylabel('Moment (N-m)');
 xlabel('Time (s)');
@@ -174,16 +208,16 @@ figure;
 set(gcf, 'Name', 'Aerodynamic Forces in Wind Axis');
 
 % Initialize arrays for wind-axis forces
-F_aero_wind = zeros(size(F_aero));
+F_aero_wind = zeros(size(F_aero_ds));
 
 % Get DCM data and times (DCM converts vectors from body to wind frame directly)
 DCMwb_data = plant_data.DCMwb.Data;
 t_DCM = plant_data.DCMwb.Time;
 
 % Transform each force vector from body to wind frame using a proper time match
-for i = 1:size(F_aero, 1)
+for i = 1:size(F_aero_ds, 1)
     % Find the first DCM time greater than or equal to the current force time
-    idx = find(t_DCM >= t_forces(i), 1, 'first');
+    idx = find(t_DCM >= t_forces_ds(i), 1, 'first');
     if isempty(idx)
         idx = length(t_DCM);
     end
@@ -192,20 +226,20 @@ for i = 1:size(F_aero, 1)
     DCM_i = squeeze(DCMwb_data(:,:,idx));
     
     % Convert from body to wind
-    F_aero_wind(i,:) = (DCM_i * F_aero(i,:)')';
+    F_aero_wind(i,:) = (DCM_i * F_aero_ds(i,:)')';
 end
 
 % Plot drag force (negative X-axis force in wind frame)
 subplot(2,1,1);
 hold on; grid on;
-plot(t_forces, -F_aero_wind(:,1), 'b', 'LineWidth', 1.2);
+plot(t_forces_ds, -F_aero_wind(:,1), 'b', 'LineWidth', 1.2);
 title('Drag Force');
 ylabel('Drag (N)');
 
 % Plot normal force (negative Z-axis force in wind frame)
 subplot(2,1,2);
 hold on; grid on;
-plot(t_forces, -F_aero_wind(:,3), 'r', 'LineWidth', 1.2);
+plot(t_forces_ds, -F_aero_wind(:,3), 'r', 'LineWidth', 1.2);
 title('Normal Force');
 ylabel('Normal Force (N)');
 xlabel('Time (s)');
@@ -215,13 +249,19 @@ subplot(2,1,1);
 hold on; grid on;
 Vb_data = plant_data.Vb.Data;
 t_Vb = plant_data.Vb.Time;
-plot(t_Vb, Vb_data(:,3), 'b', 'LineWidth', 1.2);
+
+% Downsample velocity data
+idx_Vb = 1:downsample_factor:length(Vb_data);
+Vb_data_ds = Vb_data(idx_Vb,:);
+t_Vb_ds = t_Vb(idx_Vb);
+
+plot(t_Vb_ds, Vb_data_ds(:,3), 'b', 'LineWidth', 1.2);
 title('Body Z Axis Velocity');
 ylabel('V_z (m/s)');
 
 subplot(2,1,2);
 hold on; grid on;
-plot(t_forces, F_aero(:,3), 'r', 'LineWidth', 1.2);
+plot(t_forces_ds, F_aero_ds(:,3), 'r', 'LineWidth', 1.2);
 title('Body Z Axis Aerodynamic Force');
 xlabel('Time (s)');
 ylabel('F_x Aero (N)');
@@ -230,13 +270,13 @@ ylabel('F_x Aero (N)');
 figure;
 subplot(2,1,1);
 hold on; grid on;
-plot(t_alpha, alpha, 'b', 'LineWidth', 1.2);
+plot(t_alpha_ds, alpha_ds, 'b', 'LineWidth', 1.2);
 title('Angle of Attack');
 ylabel('\alpha (deg)');
 
 subplot(2,1,2);
 hold on; grid on;
-plot(t_moments, M_aero(:,2), 'r', 'LineWidth', 1.2);
+plot(t_moments_ds, M_aero_ds(:,2), 'r', 'LineWidth', 1.2);
 title('Aerodynamic Pitching Moment');
 xlabel('Time (s)');
 ylabel('M_{pitch} (N-m)');
