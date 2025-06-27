@@ -13,7 +13,7 @@ sim_params = initialize_sim_parameters();
 disp('Initialization of sim_params complete.');
 
 %LQR_Controller_Design
-lqr_gain_scedule
+LQR_Controller_Design
 
 % Load Simulink model
 modelName = 'STEVE_Simulation';
