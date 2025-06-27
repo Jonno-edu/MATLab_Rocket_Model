@@ -1,3 +1,6 @@
+clear
+clc
+close all
 
 %% Plant model (TVC Rocket - Max Q @ t=60s)
 % Physical parameters (SI units)
@@ -61,10 +64,10 @@ B = sys_open_loop.B;
 %% LQR Controller Design (Bryson's Rule)
 % Define maximum acceptable deviations for each state and input.
 % State order is: [alpha, theta, theta_dot, act_rate, act_pos]
-max_alpha     = 15*pi/180; 
+max_alpha     = 3*pi/180; 
 max_theta     = 3*pi/180;  
 max_theta_dot = 50*pi/180;  
-max_act_rate  = 20*pi/180;    
+max_act_rate  = 50*pi/180;    
 max_act_pos   = 4*pi/180;   
 
 max_TVC_command = 4*pi/180;
