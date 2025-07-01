@@ -10,6 +10,7 @@ I = 2.38e4;             % moment of inertia about pitch axis (kg⋅m²)
 T = 2.64e4;             % thrust (N)
 L_arm = 3.9;            % TVC moment arm from CG to nozzle (m)
 
+
 % Aerodynamic coefficients
 CLa = 2.0;              % lift curve slope (1/rad)
 Cma = 0.885;            % moment curve slope (1/rad) - positive = unstable
@@ -61,13 +62,15 @@ B = sys_open_loop.B;
 %% LQR Controller Design (Bryson's Rule)
 % Define maximum acceptable deviations for each state and input.
 % State order is: [alpha, theta, theta_dot, act_rate, act_pos]
-max_alpha     = 15*pi/180; 
-max_theta     = 3*pi/180;  
-max_theta_dot = 50*pi/180;  
-max_act_rate  = 20*pi/180;    
+max_alpha     = 1*pi/180; 
+max_theta     = 1*pi/180;  
+max_theta_dot = 1*pi/180;  
+max_act_rate  = 1*pi/180;    
 max_act_pos   = 4*pi/180;   
 
-max_TVC_command = 4*pi/180;
+max_TVC_command = 0.5*pi/180;
+
+
 
 % Construct Q matrix using Bryson's Rule
 Q_diag = [1/max_alpha^2, 1/max_theta^2, 1/max_theta_dot^2, 1/max_act_rate^2, 1/max_act_pos^2];
@@ -81,3 +84,7 @@ K_lqr = lqr(A, B, Q, R);
 
 disp('LQR Gain Matrix K:');
 disp(K_lqr);
+
+disp('Eigenvalues of closed loop system:');
+disp(eig(A - B*K_lqr));
+

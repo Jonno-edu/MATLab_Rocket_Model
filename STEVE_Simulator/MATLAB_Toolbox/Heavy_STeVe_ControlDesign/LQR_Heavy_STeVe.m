@@ -2,6 +2,7 @@ clear
 clc
 close all
 
+
 %% Plant model (TVC Rocket - Max Q @ t=60s)
 % Physical parameters (SI units)
 m = 1277.9;             % rocket mass (kg)
@@ -64,13 +65,13 @@ B = sys_open_loop.B;
 %% LQR Controller Design (Bryson's Rule)
 % Define maximum acceptable deviations for each state and input.
 % State order is: [alpha, theta, theta_dot, act_rate, act_pos]
-max_alpha     = 3*pi/180; 
-max_theta     = 3*pi/180;  
-max_theta_dot = 50*pi/180;  
+max_alpha     = 0.75*pi/180; 
+max_theta     = 1*pi/180;  
+max_theta_dot = 1*pi/180;  
 max_act_rate  = 50*pi/180;    
 max_act_pos   = 4*pi/180;   
 
-max_TVC_command = 4*pi/180;
+max_TVC_command =  4*pi/180;
 
 % Construct Q matrix using Bryson's Rule
 Q_diag = [1/max_alpha^2, 1/max_theta^2, 1/max_theta_dot^2, 1/max_act_rate^2, 1/max_act_pos^2];
@@ -84,3 +85,6 @@ K_lqr = lqr(A, B, Q, R);
 
 disp('LQR Gain Matrix K:');
 disp(K_lqr);
+
+disp('Eigenvalues of closed loop system:');
+disp(eig(A - B*K_lqr));
