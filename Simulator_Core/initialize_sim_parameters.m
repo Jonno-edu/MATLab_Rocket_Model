@@ -45,14 +45,14 @@ end
 
 %% System Parameters
 Sim.Timestep = 0.0001;
-Sim.Time = 30;
+Sim.Time = 150;
 sim_params.Sim = Sim;
 
 Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
 Initial.Conditions.tiltAngle = deg2rad(74.5);    % Initial pitch [deg]
 Initial.Conditions.pitchRate = (0.0);           % Pitch rate [deg/s]
-Initial.Conditions.V0 = 340;                     % Initial velocity [m/s]
-Initial.Conditions.h0 = (-1)*8320;                  % Initial altitude [m] (positive up)
+Initial.Conditions.V0 = 0.1;                     % Initial velocity [m/s]
+Initial.Conditions.h0 = (-1)*0;                  % Initial altitude [m] (positive up)
 sim_params.Initial = Initial;
 
 Actuators.Engine.BurnTime = readmatrix(heavySteveDataFilePath, 'Sheet', "Derived Properties", 'Range', "S4:S4");
@@ -61,7 +61,7 @@ Actuators.Nozzle.RateLimit = deg2rad(150);       % rate_lim_nozzle [rad/s]
 Actuators.Engine.MaxThrust = (27.6*10^3)*1;      % max_thrust [N]
 sim_params.Actuators = Actuators;
 
-Wind.shear = 0.1;                                % Wind shear [m/s]
+Wind.shear = 20;                                % Wind shear [m/s]
 sim_params.Wind = Wind;
 
 
