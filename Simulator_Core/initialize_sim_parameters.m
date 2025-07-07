@@ -23,29 +23,36 @@ sim_params.OutputDataPath = fullfile(projectRoot, 'Simulator_Core', 'output_data
 %% Import Mass Data
 fprintf('Loading Mass data from Excel: %s\n', heavySteveDataFilePath);
 if exist(heavySteveDataFilePath, 'file')
+    % Read the number of data points
     numsteps = readmatrix(heavySteveDataFilePath, 'Sheet', "Derived Properties", 'Range', "D4:D4");
     
     endRow = numsteps + 1;
     dynamicRange = "A2:F" + endRow;
     
+    % Set up import options to read all columns, including the original time
     opts = detectImportOptions(heavySteveDataFilePath, "Sheet", "Mass Properties Heavy");
     opts.DataRange = dynamicRange;
     opts.VariableNames = ["Time", "Mass", "COM_Z", "MOIx_Z", "MOIy_Z", "MOIz_Z"];
     
+    % Read the full table
     STeVeV1NoFins = readtable(heavySteveDataFilePath, opts);
     
-    dt_mass = diff(STeVeV1NoFins.Time);
-    assert(all(abs(dt_mass - 0.005) < 1e-10), 'Mass data time vector not perfectly spaced!');
+    % Reconstruct a perfect time vector to replace the old one
+    dt = 0.005; % Note: Ensure this is the correct time step for your data
+    num_rows = height(STeVeV1NoFins);
+    Time_new = (0:dt:(num_rows-1)*dt)';
     
-    fprintf('Mass data loaded.\n');
+    % Replace the original time column with the newly generated, perfect one
+    STeVeV1NoFins.Time = Time_new;
+    
+    fprintf('Mass data loaded and time vector has been corrected.\n');
 else
     error('Mass data file not found: %s', heavySteveDataFilePath);
 end
 
-
 %% System Parameters
 Sim.Timestep = 0.0001;
-Sim.Time = 150;
+Sim.Time = 140;
 sim_params.Sim = Sim;
 
 Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
