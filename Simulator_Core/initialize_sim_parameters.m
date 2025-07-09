@@ -55,11 +55,40 @@ Sim.Timestep = 0.0001;
 Sim.Time = 140;
 sim_params.Sim = Sim;
 
-Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
+Initial.Conditions.theta0 = deg2rad(90.05);         % Initial pitch [deg]
 Initial.Conditions.tiltAngle = deg2rad(74.5);    % Initial pitch [deg]
 Initial.Conditions.pitchRate = (0.0);           % Pitch rate [deg/s]
-Initial.Conditions.V0 = 0.1;                     % Initial velocity [m/s]
-Initial.Conditions.h0 = (-1)*0;                  % Initial altitude [m] (positive up)
+
+% --- Conditional Initial Conditions for Unit Testing ---
+% Check if unit_test flag exists in the base workspace
+unit_test_exists = evalin('base', 'exist(''unit_test'', ''var'')');
+if unit_test_exists
+    unit_test = evalin('base', 'unit_test');
+else
+    unit_test = false;
+end
+
+if unit_test
+    fprintf('UNIT TEST MODE: Setting initial conditions from linearization script.\n');
+    % This assumes the LQR design script has been run and 'params' exists in the base workspace
+    try
+        params = evalin('base', 'params');
+        Initial.Conditions.V0 = params.V;
+        Initial.Conditions.h0 = -params.Alt;
+        fprintf('  - Initial Velocity (V0): %.2f m/s\n', Initial.Conditions.V0);
+        fprintf('  - Initial Altitude (h0): %.2f m\n', Initial.Conditions.h0);
+    catch ME
+        warning('Could not find "params" struct in base workspace for unit test. Defaulting to 0.');
+        Initial.Conditions.V0 = 0.1;
+        Initial.Conditions.h0 = 0;
+    end
+else
+    fprintf('STANDARD MODE: Using default initial conditions.\n');
+    Initial.Conditions.V0 = 0.1;                     % Initial velocity [m/s]
+    Initial.Conditions.h0 = 0;                       % Initial altitude [m] (positive up)
+end
+% --- End of Section ---
+
 sim_params.Initial = Initial;
 
 Actuators.Engine.BurnTime = readmatrix(heavySteveDataFilePath, 'Sheet', "Derived Properties", 'Range', "S4:S4");
@@ -189,10 +218,14 @@ sim_params.Ref_Area = RocketAeroPhysical.Reference_Area; % For convenience
 
 %% Save RocketSimData.mat
 rocketSimDataFile = fullfile(sim_params.OutputDataPath, 'RocketSimData.mat');
-Ref_Area = RocketAeroPhysical.Reference_Area;  % <-- Added to fix save error
+Ref_Area = RocketAeroPhysical.Reference_Area;  % Create local variable for saving
 fprintf('\nSaving simulation setup data to: %s\n', rocketSimDataFile);
+
+% --- CORRECTED LINE ---
+% Use the local variable 'Ref_Area' instead of the struct field 'sim_params.Ref_Area'
 save(rocketSimDataFile, 'PrelookupData', 'ThrustLookupData', 'Initial', 'Actuators', 'RocketAero', ...
      'Mach_Breakpoints', 'Alpha_Breakpoints', 'Ref_Area', 'Sim', 'Wind');
+
 % Add Controller to save if it was loaded:
 if isfield(sim_params, 'Controller') && ~isempty(fieldnames(sim_params.Controller))
     save(rocketSimDataFile, 'Controller', '-append');
@@ -221,4 +254,4 @@ assignin('base', 'inertia_tensor', inertia_tensor);
 assignin('base', 'd_inertia_tensor', d_inertia_tensor);
 % No explicit assignin('base', ...) as this is a function.
 % The calling script (run_simulation.m) will receive sim_params.
-end 
+end

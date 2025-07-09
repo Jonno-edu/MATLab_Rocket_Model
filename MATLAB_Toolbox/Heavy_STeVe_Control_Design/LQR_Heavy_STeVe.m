@@ -1,60 +1,109 @@
-clear
-clc
-close all
+% design_lqr_at_time.m
+% This script designs an LQR controller for a single flight condition
+% and ensures all matrices are of the correct 'double' data type for Simulink.
 
-%% Plant Parameters (TVC Rocket)
-% This script models the rocket at a single point in time to design and
-% test a single-point LQR controller.
+clear;
+clc;
+close all;
 
-% Physical parameters (SI units)
-m = 1873.04;             % rocket mass (kg)
-rho = 1.2250;              % air density (kg/m³)
-V = 1.55;              % velocity (m/s)
-S = 0.200296;           % reference area (m²)
-L = 9.542;              % reference length (m)
-I = 33017;             % moment of inertia about pitch axis (kg⋅m²)
-T = 33017;             % thrust (N)
-L_arm = 4.016;            % TVC moment arm from CG to nozzle (m)
+%% --- Configuration ---
+% Define the point in time (in seconds) for which to design the controller.
+query_time = 40; % Example: Design for t=10s
 
-% Aerodynamic coefficients
-CNa = -2;              % Normal force coefficient derivative (1/rad)
-Cma = 16.714;            % Pitching moment coefficient derivative (1/rad) - positive = unstable
-Cmq = -4;               % Pitch damping derivative (1/rad) - Should be negative for damping
+%% 1. Setup and Load Simulation Data
+filename = '/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/Simulator_Core/output_data/simOut_heavy_benchmark.mat';
+try
+    load(filename);
+    fprintf('Successfully loaded flight data from %s.\n', filename);
+catch
+    error('File not found: %s. Please check the filename and path.', filename);
+end
 
-%% Dimensional Stability Derivatives
-% Calculate dimensional derivatives based on the corrected state-space derivation.
-q_bar = 0.5 * rho * V^2; % Dynamic pressure
+%% 2. Extract and Interpolate Flight Data at query_time
+fprintf('\nFetching flight data for t = %.1f s...\n', query_time);
+logsout_data = simOut.logsout;
+paths = struct();
+paths.V = 'airspeed';
+paths.rho = 'ENV.AirDensity';
+paths.mass = 'mass';
+paths.I = 'I';
+paths.T = 'engineThrust';
+paths.CNa = 'Cnalpha';
+paths.CMa = 'Cmalpha';
+paths.Cmq = 'cmq';
+paths.L_arm = 'CG_X';
 
+interp_data = struct();
+field_names = fieldnames(paths);
+for i = 1:length(field_names)
+    signal_name = field_names{i};
+    signal_path = paths.(signal_name);
+    try
+        signal_obj = get_nested_signal(logsout_data, signal_path);
+        ts = signal_obj.Values;
+        if strcmp(signal_name, 'I')
+            inertia_data = squeeze(ts.Data(2,2,:));
+            interp_data.(signal_name) = interp1(ts.Time, inertia_data, query_time, 'linear', 'extrap');
+        else
+            interp_data.(signal_name) = interp1(ts.Time, squeeze(ts.Data), query_time, 'linear', 'extrap');
+        end
+    catch ME
+        error('Failed to extract or interpolate signal "%s": %s', signal_path, ME.message);
+    end
+end
+fprintf('Data fetch complete.\n');
+
+%% 3. Assign Fetched Parameters
+% Fixed parameters
+S = 0.200296;
+L = 9.542;
+
+% Assign interpolated physical parameters
+m = interp_data.mass;
+rho = interp_data.rho;
+V = interp_data.V;
+I = interp_data.I;
+T = interp_data.T;
+L_arm = interp_data.L_arm;
+
+% Assign interpolated aerodynamic coefficients and ensure correct signs
+CNa = interp_data.CNa;
+Cma = abs(interp_data.CMa);
+Cmq = -abs(interp_data.Cmq);
+
+% Robustness check for velocity at t=0
+if V < 1.0; V = 1.0; end
+
+%% 4. Dimensional Stability Derivatives
+q_bar = 0.5 * rho * V^2;
 Z_alpha = (q_bar * S / m) * CNa;
 Z_delta = T / m;
 M_alpha = (q_bar * S * L / I) * Cma;
 M_q = (q_bar * S * L^2) / (2 * V * I) * Cmq;
 M_delta = (T * L_arm) / I;
 
-%% Rocket Airframe State-Space Model (3 states)
-% States are now correctly defined as: [alpha; q; theta]
-A_plant = [-Z_alpha/V,  1,   0;
-            M_alpha,    M_q, 0;
-            0,          1,   0];
+%% 5. Rocket Airframe State-Space Model (3 states)
+A_plant_raw = [-Z_alpha/V,  1,   0;
+               M_alpha,    M_q, 0;
+               0,          1,   0];
 
-B_plant = [-Z_delta/V;
-            M_delta;
-            0];
+B_plant_raw = [-Z_delta/V;
+               M_delta;
+               0];
 
-C_plant = eye(3);
-D_plant = zeros(3,1);
+% --- DATA TYPE CORRECTION ---
+% Ensure all matrices are double-precision, which Simulink expects.
+% This prevents errors if any upstream calculation produces a single.
+A_plant = double(A_plant_raw);
+B_plant = double(B_plant_raw);
+C_plant = double(eye(3));
+D_plant = double(zeros(3,1));
 
 sys_plant = ss(A_plant, B_plant, C_plant, D_plant);
 sys_plant.StateName = {'alpha', 'q', 'theta'};
-sys_plant.InputName = {'delta_T'};
-sys_plant.OutputName = {'alpha_out', 'q_out', 'theta_out'};
 
-fprintf('Rocket airframe model has %d states.\n', size(A_plant, 1));
-fprintf('Open-loop plant poles (eigenvalues of A_plant):\n');
-disp(eig(A_plant));
-
-%% Actuator State-Space Model (2 states)
-natural_frequency = 62;       % rad/s
+%% 6. Actuator State-Space Model (2 states)
+natural_frequency = 62;
 damping_ratio = 0.5858;
 num_actuator = natural_frequency^2;
 den_actuator = [1, 2*damping_ratio*natural_frequency, natural_frequency^2];
@@ -62,62 +111,55 @@ G_actuator = tf(num_actuator, den_actuator);
 
 sys_actuator = ss(G_actuator);
 sys_actuator.StateName = {'act_pos', 'act_rate'};
-sys_actuator.InputName = {'delta_cmd'};
-sys_actuator.OutputName = {'delta_actual'};
 
-fprintf('Actuator model has %d states.\n', size(sys_actuator.A, 1));
-
-%% Combine Models
+%% 7. Combine Models
 sys_open_loop = series(sys_actuator, sys_plant);
-
-fprintf('Combined open-loop model has %d states.\n', size(sys_open_loop.A, 1));
-
-% Extract A and B matrices for controller design
 A = sys_open_loop.A;
 B = sys_open_loop.B;
 
-%% LQR Controller Design (Bryson's Rule) - ROBUST METHOD
-
-% --- THIS IS THE CORRECTED SECTION ---
-% First, define maximum acceptable deviations for each state.
+%% 8. LQR Controller Design
 max_devs = struct();
-max_devs.act_pos     = 4 * pi/180;     % rad
-max_devs.act_rate    = 50 * pi/180;    % rad/s
-max_devs.alpha       = 1 * pi/180;     % rad
-max_devs.q           = 20 * pi/180;    % rad/s (pitch rate)
-max_devs.theta       = 1 * pi/180;   % rad
+max_devs.act_pos     = 3 * pi/180;
+max_devs.act_rate    = 50 * pi/180;
+max_devs.alpha       = 0.5 * pi/180;
+max_devs.q           = 0.2 * pi/180;
+max_devs.theta       = 10 * pi/180;
+max_TVC_command      = 4 * pi/180;
 
-max_TVC_command = 0.1 * pi/180;     % rad
-
-% Second, programmatically get the ACTUAL state order from the combined system.
 actual_state_order = sys_open_loop.StateName;
-fprintf('Actual combined system state order is:\n');
-disp(actual_state_order);
-
-% Third, build the Q_diag vector in the CORRECT order by looping through
-% the actual state names and assigning the corresponding penalty.
 num_states = length(actual_state_order);
 Q_diag = zeros(1, num_states);
 for i = 1:num_states
     state_name = actual_state_order{i};
-    if isfield(max_devs, state_name)
-        Q_diag(i) = 1 / max_devs.(state_name)^2;
-    else
-        error('State name "%s" not found in max_devs structure.', state_name);
-    end
+    Q_diag(i) = 1 / max_devs.(state_name)^2;
 end
-
-fprintf('\nQ diagonal constructed in the correct order to match the system states.\n');
 Q = diag(Q_diag);
-
-% Construct R matrix using Bryson's Rule
 R = 1/max_TVC_command^2;
-
-% Calculate the LQR gain matrix K
 K_lqr = lqr(A, B, Q, R);
 
+%% --- Final Results ---
+fprintf('\n--- LQR Design Complete for t = %.1f s ---\n', query_time);
 disp('LQR Gain Matrix K:');
 disp(K_lqr);
-
-disp('Eigenvalues of the closed-loop system (A - B*K):');
+disp('Closed-loop Eigenvalues:');
 disp(eig(A - B*K_lqr));
+
+
+%% Helper Function to Extract Nested Signals from logsout
+function signal_obj = get_nested_signal(logsout_data, path_str)
+    path_parts = strsplit(path_str, '.');
+    try
+        current_obj = logsout_data.getElement(path_parts{1});
+        if length(path_parts) > 1
+            current_struct = current_obj.Values;
+            for k = 2:length(path_parts)
+                current_struct = current_struct.(path_parts{k});
+            end
+            signal_obj.Values = current_struct;
+        else
+            signal_obj = current_obj;
+        end
+    catch ME
+        rethrow(ME);
+    end
+end

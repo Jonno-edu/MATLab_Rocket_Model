@@ -1,90 +1,160 @@
+% LQR Controller Design for a Single Flight Point
+% This script prompts the user for a specific time, loads flight data,
+% extracts the vehicle parameters at that instant, and designs the
+% LQR controller using the correct state-space formulation.
+%clear; clc; close all;
 
-%% Plant model (TVC Rocket - Max Q @ t=60s)
-% Physical parameters (SI units)
-m = 1277.9;             % rocket mass (kg)
-rho = 0.5;              % air density (kg/m³)
-V = 340.8;              % velocity (m/s) - Transonic
-S = 0.200296;           % reference area (m²)
-L = 9.542;              % reference length (m)
-I = 2.38e4;             % moment of inertia about pitch axis (kg⋅m²)
-T = 2.64e4;             % thrust (N)
-L_arm = 3.9;            % TVC moment arm from CG to nozzle (m)
+%% 1. User Input and Simulation Data Loading
+% --- SET THE DESIRED TIME FOR ANALYSIS HERE ---
+target_time = 0.5; 
+
+unit_test = true;
 
 
-% Aerodynamic coefficients
-CLa = 2.0;              % lift curve slope (1/rad)
-Cma = 0.885;            % moment curve slope (1/rad) - positive = unstable
-Cmq = -1.05;            % pitch damping coefficient (1/rad)
+% Load simulation data
+filename = '/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/Simulator_Core/output_data/simOut_heavy_benchmark.mat'; % Ensure this file is in your MATLAB path
+try
+    load(filename);
+    fprintf('Successfully loaded flight data from %s.\n', filename);
+catch
+    error('File not found: %s. Please check the filename and path.', filename);
+end
 
-% Calculate derived constants
-q = 0.5 * rho * V^2;
-d1 = (rho * V * S)/(2 * m) * CLa + T/(m * V);
-d2 = T * L_arm / I;
-d3 = (rho * V^2 * S * L)/(2 * I) * Cma;
-d4 = (rho * V * S * L^2)/(2 * I) * Cmq;
-d5 = T / (m * V);
+%% 2. Define Fixed System Parameters & LQR Tuning Weights
+% Fixed parameters
+S = 0.200296;           % Reference area (m²)
+L = 9.542;              % Reference length (m)
 
-%% Rocket Airframe State-Space Model (3 states)
-% States: [alpha, theta, theta_dot]
-A_plant = [-d1  0   1;
-            0   0   1;
-            d3  0   d4];
-B_plant = [-d5;
-            0;
-            d2];
-C_plant = eye(3); % Output all three states
-D_plant = zeros(3,1);
-sys_plant = ss(A_plant, B_plant, C_plant, D_plant);
-fprintf('Rocket airframe model has %d states.\n', size(A_plant, 1));
-
-%% Actuator State-Space Model (2 states)
-% G_actuator(s) = (wn^2) / (s^2 + 2*zeta*wn*s + wn^2)
+% Actuator model (states are [position; rate])
 natural_frequency = 62; % rad/s
 damping_ratio = 0.5858;
-num_actuator = natural_frequency^2;
-den_actuator = [1, 2*damping_ratio*natural_frequency, natural_frequency^2];
-G_actuator = tf(num_actuator, den_actuator);
-sys_actuator = ss(G_actuator);
-fprintf('Actuator model has %d states.\n', size(sys_actuator.A, 1));
+wn = natural_frequency;
+zeta = damping_ratio;
+A_act = [0 1; -wn^2 -2*zeta*wn];
+B_act = [0; wn^2];
+C_act = [1 0]; % Actuator output is position
 
-%% Combine Models
-% Connect actuator and plant in series to form the open-loop system.
-% The signal flow is: command -> actuator -> plant.
-% The order of multiplication is sys_plant * sys_actuator.
-sys_open_loop = sys_plant * sys_actuator;
+% LQR Tuning Weights
+max_alpha       = 1 * pi/180;  % rad
+max_q           = 1 * pi/180;% rad/s (pitch rate)
+max_theta       = 1 * pi/180;% rad
+max_act_pos     = 2 * pi/180;  % rad
+max_act_rate    = 10 * pi/180; % rad/s
 
-fprintf('Combined open-loop model has %d states.\n', size(sys_open_loop.A, 1));
+max_TVC_command = 2 * pi/180;  % rad
 
-% Extract A and B matrices for controller design
-A = sys_open_loop.A;
-B = sys_open_loop.B;
-
-%% LQR Controller Design (Bryson's Rule)
-% Define maximum acceptable deviations for each state and input.
-% State order is: [alpha, theta, theta_dot, act_rate, act_pos]
-max_alpha     = 1*pi/180; 
-max_theta     = 1*pi/180;  
-max_theta_dot = 1*pi/180;  
-max_act_rate  = 1*pi/180;    
-max_act_pos   = 4*pi/180;   
-
-max_TVC_command = 0.5*pi/180;
-
-
-
-% Construct Q matrix using Bryson's Rule
-Q_diag = [1/max_alpha^2, 1/max_theta^2, 1/max_theta_dot^2, 1/max_act_rate^2, 1/max_act_pos^2];
+% Construct Q and R matrices
+Q_diag = [1/max_alpha^2, 1/max_q^2, 1/max_theta^2, 1/max_act_pos^2, 1/max_act_rate^2];
 Q = diag(Q_diag);
-
-% Construct R matrix using Bryson's Rule
 R = 1/max_TVC_command^2;
 
-% Calculate the LQR gain matrix K
-K_lqr = lqr(A, B, Q, R);
+%% 3. Extract and Interpolate Flight Data at Target Time
+logsout_data = simOut.logsout;
 
+% Define all the signal paths to be extracted
+paths = struct();
+paths.V = 'airspeed';
+paths.rho = 'ENV.AirDensity';
+paths.mass = 'mass';
+paths.I = 'I';
+paths.T = 'engineThrust';
+paths.CNa = 'Cnalpha';
+paths.CMa = 'Cmalpha';
+paths.Cmq = 'cmq';
+paths.L_arm = 'CG_X';  % TVC moment arm (CG from tail)
+paths.Alt = 'PlantData.alt'; % CORRECTED PATH for altitude
+
+% Extract and interpolate each required parameter at the target time
+fprintf('\nExtracting flight parameters at t = %.2f s...\n', target_time);
+params = struct();
+field_names = fieldnames(paths);
+for i = 1:length(field_names)
+    signal_name = field_names{i};
+    signal_path = paths.(signal_name);
+
+    try
+        signal_obj = get_nested_signal(logsout_data, signal_path);
+        ts = signal_obj.Values;
+
+        if strcmp(signal_name, 'I')
+            % Handle 3D inertia matrix, extracting Iyy
+            inertia_data = squeeze(ts.Data(2,2,:));
+            params.(signal_name) = interp1(ts.Time, inertia_data, target_time, 'linear', 'extrap');
+        else
+            params.(signal_name) = interp1(ts.Time, squeeze(ts.Data), target_time, 'linear', 'extrap');
+        end
+    catch ME
+        error('Failed to extract or interpolate signal "%s": %s', signal_path, ME.message);
+    end
+end
+
+% Display the extracted parameters for verification
+fprintf('--- Vehicle State at t = %.2f s ---\n', target_time);
+fprintf('Altitude (Alt): %.1f m\n', params.Alt); % Display altitude
+fprintf('Mass (m):       %.2f kg\n', params.mass);
+fprintf('Velocity (V):   %.2f m/s\n', params.V);
+fprintf('Density (rho):  %.4f kg/m^3\n', params.rho);
+fprintf('Thrust (T):     %.0f N\n', params.T);
+fprintf('Inertia (Iyy):  %.0f kg*m^2\n', params.I);
+fprintf('TVC Arm (L_arm):%.3f m\n', params.L_arm);
+fprintf('CNa:            %.3f\n', params.CNa);
+fprintf('CMa:            %.3f\n', params.CMa);
+fprintf('Cmq:            %.3f\n', params.Cmq);
+fprintf('------------------------------------\n\n');
+
+
+%% 4. Main LQR Design for the Single Flight Point
+% Recalculate dimensional stability derivatives using the extracted data
+q_bar = 0.5 * params.rho * params.V^2;
+Z_alpha = (q_bar * S / params.mass) * params.CNa + (params.T / params.mass);
+Z_delta = params.T / params.mass;
+M_alpha = (q_bar * S * L / params.I) * params.CMa;
+M_q = (q_bar * S * L^2) / (2 * params.V * params.I) * params.Cmq;
+M_delta = (params.T * params.L_arm) / params.I;
+
+% Define the airframe-only state-space model
+% States: [alpha; q; theta]
+A_plant = [-Z_alpha/params.V,  1,   0;
+            M_alpha,           M_q, 0;
+            0,                 1,   0];
+
+B_plant = [-Z_delta/params.V;
+            M_delta;
+            0];
+
+% Define the combined plant and actuator model for LQR design
+% States: [alpha; q; theta; act_pos; act_rate]
+A_current = [[A_plant, B_plant*C_act]; [zeros(2,3), A_act]];
+B_current = [B_plant*0; B_act]; % Assuming D_act is 0
+
+% Design the LQR controller for this specific flight point
+K_lqr = lqr(A_current, B_current, Q, R);
+
+%% 5. Display Final Results for the Target Time
+fprintf('--- LQR Controller Design Complete for t = %.2f s ---\n', target_time);
 disp('LQR Gain Matrix K:');
 disp(K_lqr);
 
-disp('Eigenvalues of closed loop system:');
-disp(eig(A - B*K_lqr));
+disp('Eigenvalues of the closed-loop system (A - B*K):');
+disp(eig(A_current - B_current * K_lqr));
+fprintf('Note: All eigenvalues should have negative real parts for stability.\n');
 
+
+%% Helper Function to Extract Nested Signals from logsout
+function signal_obj = get_nested_signal(logsout_data, path_str)
+    path_parts = strsplit(path_str, '.');
+    try
+        current_obj = logsout_data.getElement(path_parts{1});
+        if length(path_parts) > 1
+            current_struct = current_obj.Values;
+            for k = 2:length(path_parts)
+                current_struct = current_struct.(path_parts{k});
+            end
+            signal_obj.Values = current_struct;
+        else
+            signal_obj = current_obj;
+        end
+    catch ME
+        rethrow(ME);
+    end
+end

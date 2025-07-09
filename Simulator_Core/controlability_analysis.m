@@ -16,6 +16,7 @@ max_gimbal_angle_deg = 5.0;
 % --- Fixed Physical Parameters ---
 S = 0.200296; % Reference Area (m^2)
 d_ref = sqrt(4*S/pi); % Vehicle Diameter (m) as aero reference length
+rocket_length = 9.542; % Total rocket length (m), nose to tail
 
 % Load the simulation data
 try
@@ -37,7 +38,8 @@ paths.T = 'engineThrust';
 paths.CNa = 'Cnalpha';
 paths.CMa = 'Cmalpha';
 paths.Cmq = 'cmq';
-paths.L_arm = 'CG_X'; 
+paths.L_arm = 'CG_X'; % CG from TAIL
+paths.CP = 'CP';     % CP from NOSE
 
 t_end = logsout_data.getElement(paths.V).Values.Time(end);
 t_linearize = t_start_analysis:linearization_interval:floor(t_end);
@@ -71,7 +73,6 @@ for i = 1:length(fields)
 end
 fprintf('Data interpolation complete for %d time points, starting at t=%.1fs.\n', num_points, t_start_analysis);
 
-
 %% 3. System Linearization at Each Time Point
 Z_alpha = zeros(1, num_points);
 Z_delta = zeros(1, num_points);
@@ -97,8 +98,12 @@ for i = 1:num_points
 end
 fprintf('State-space linearization complete for all points.\n');
 
-
 %% 4. Comprehensive Stability and Authority Analysis
+% Calculate static margin
+cg_from_nose = rocket_length - params.L_arm;
+static_margin_calibers = (params.CP - cg_from_nose) / d_ref;
+
+% Pre-allocate results
 time_to_double = zeros(1, num_points);
 trim_gimbal_angle_deg = zeros(1, num_points);
 total_gimbal_angle_deg = zeros(1, num_points);
@@ -134,123 +139,103 @@ for i = 1:num_points
 end
 fprintf('Comprehensive authority analysis complete.\n');
 
-%% 5. Debug Printout at a Specific Time Point
-t_debug = 66; 
+%% 5. Find Critical Time Points for Each Metric
+% Find critical points (min/max) for each metric
+[ttd_min_val, ttd_min_idx] = min(time_to_double);
+[gimbal_max_val, gimbal_max_idx] = max(total_gimbal_angle_deg);
+[cr_min_val, cr_min_idx] = min(controllability_ratio);
+[sm_min_val, sm_min_idx] = min(static_margin_calibers);
 
-[~, debug_idx] = min(abs(t_linearize - t_debug));
-actual_debug_time = t_linearize(debug_idx);
+% Get the corresponding timestamps
+ttd_critical_time = t_linearize(ttd_min_idx);
+gimbal_critical_time = t_linearize(gimbal_max_idx);
+cr_critical_time = t_linearize(cr_min_idx);
+sm_critical_time = t_linearize(sm_min_idx);
 
-fprintf('\n\n--- DEBUG PRINTOUT AT t = %.1f s ---\n', actual_debug_time);
+% Print critical points summary
+fprintf('\n--- CRITICAL POINTS SUMMARY ---\n');
+fprintf('Min Static Margin: %.2f calibers at t=%.1f s\n', sm_min_val, sm_critical_time);
+fprintf('Most Unstable Point (Min Time to Double): %.2f s at t=%.1f s\n', ttd_min_val, ttd_critical_time);
+fprintf('Max Authority Demand: %.2f deg at t=%.1f s\n', gimbal_max_val, gimbal_critical_time);
+fprintf('Min Controllability Ratio: %.2f at t=%.1f s\n', cr_min_val, cr_critical_time);
+fprintf('--- END CRITICAL POINTS ---\n\n');
 
-V_d = params.V(debug_idx); rho_d = params.rho(debug_idx); m_d = params.mass(debug_idx);
-Iyy_d = params.I(debug_idx); T_d = params.T(debug_idx); CNa_d = params.CNa(debug_idx);
-CMa_d = params.CMa(debug_idx); Cmq_d = params.Cmq(debug_idx); L_arm_d = params.L_arm(debug_idx);
-q_bar_d = 0.5 * rho_d * V_d^2;
-
-fprintf('1. Fetched Variables at t = %.1f s:\n', actual_debug_time);
-fprintf('   V=%.2f m/s, rho=%.3f kg/m^3, m=%.2f kg, Iyy=%.2e kg*m^2, T=%.2f N\n', V_d, rho_d, m_d, Iyy_d, T_d);
-fprintf('   CNa=%.3f, CMa=%.3f, Cmq=%.3f, L_arm=%.3f m, d_ref=%.3f m, q_bar=%.2f Pa\n\n', CNa_d, CMa_d, Cmq_d, L_arm_d, d_ref, q_bar_d);
-
-fprintf('2. Dimensional Derivative Calculations:\n');
-Ma_d = M_alpha(debug_idx); Md_d = M_delta(debug_idx);
-fprintf('   M_alpha = (q_bar*S*d_ref/Iyy)*CMa = (%.2f*%.4f*%.3f/%.2e)*%.3f = %.4f\n', q_bar_d, S, d_ref, Iyy_d, CMa_d, Ma_d);
-fprintf('   M_delta = (T*L_arm)/Iyy = (%.2f*%.3f)/%.2e = %.4f\n\n', T_d, L_arm_d, Iyy_d, Md_d);
-
-% --- NEW: Controllability Debug Calculations ---
-fprintf('3. Controllability Analysis Calculations:\n');
-trim_rad_d = -(Ma_d / Md_d) * max_alpha_rad;
-alpha_gust_rad_d = atan(wind_gust_mps / V_d);
-delta_wind_rad_d = abs(-(Ma_d / Md_d) * alpha_gust_rad_d);
-delta_thrust_mis_rad_d = thrust_mis_rad;
-delta_cg_offset_rad_d = abs(cg_offset_m / L_arm_d);
-stochastic_rss_rad_d = sqrt(delta_wind_rad_d^2 + delta_thrust_mis_rad_d^2 + delta_cg_offset_rad_d^2);
-total_required_rad_d = abs(trim_rad_d) + stochastic_rss_rad_d;
-
-fprintf('   a) Nominal Trim Angle:\n');
-fprintf('      Formula: delta_trim = -(M_alpha / M_delta) * alpha_cmd\n');
-fprintf('      Plugged in: -(%.4f / %.4f) * %.4f rad = %.4f rad (%.2f deg)\n\n', Ma_d, Md_d, max_alpha_rad, trim_rad_d, rad2deg(trim_rad_d));
-
-fprintf('   b) Disturbance Angle Magnitudes:\n');
-fprintf('      Wind Gust: |-(M_alpha/M_delta)*atan(gust/V)| = |-(%.4f/%.4f)*atan(%.1f/%.2f)| = %.4f rad (%.2f deg)\n', Ma_d, Md_d, wind_gust_mps, V_d, delta_wind_rad_d, rad2deg(delta_wind_rad_d));
-fprintf('      Thrust Misalign: Constant = %.4f rad (%.2f deg)\n', delta_thrust_mis_rad_d, rad2deg(delta_thrust_mis_rad_d));
-fprintf('      CG Offset: |cg_offset / L_arm| = |%.2f m / %.3f m| = %.4f rad (%.2f deg)\n\n', cg_offset_m, L_arm_d, delta_cg_offset_rad_d, rad2deg(delta_cg_offset_rad_d));
-
-fprintf('   c) Total Disturbance Budget (RSS):\n');
-fprintf('      Formula: budget = sqrt(d_wind^2 + d_thrust^2 + d_cg^2)\n');
-fprintf('      Plugged in: sqrt(%.4f^2 + %.4f^2 + %.4f^2) = %.4f rad (%.2f deg)\n\n', delta_wind_rad_d, delta_thrust_mis_rad_d, delta_cg_offset_rad_d, stochastic_rss_rad_d, rad2deg(stochastic_rss_rad_d));
-
-fprintf('   d) Total Required Angle:\n');
-fprintf('      Formula: delta_total = |delta_trim| + budget\n');
-fprintf('      Plugged in: |%.4f| + %.4f = %.4f rad (%.2f deg)\n\n', trim_rad_d, stochastic_rss_rad_d, total_required_rad_d, rad2deg(total_required_rad_d));
-
-fprintf('   e) Final Controllability Ratios:\n');
-fprintf('      CR (Nominal) = max_angle / |trim_angle| = %.1f deg / %.2f deg = %.2f\n', max_gimbal_angle_deg, abs(rad2deg(trim_rad_d)), controllability_ratio_no_disturb(debug_idx));
-fprintf('      CR (Total)   = max_angle / total_angle = %.1f deg / %.2f deg = %.2f\n', max_gimbal_angle_deg, rad2deg(total_required_rad_d), controllability_ratio(debug_idx));
-
-fprintf('--- END OF DEBUG PRINTOUT ---\n\n');
-
-
-%% 6. Plotting the Results
-% (Plotting section is unchanged)
+%% 6. Enhanced Plotting with Critical Point Marking
 fig = figure('Position', [100, 100, 1200, 1200]);
 sgtitle(sprintf('TVC Rocket Stability & Controllability Analysis'), ...
     'FontSize', 16, 'FontWeight', 'bold');
 
-% --- Plot 1: Time to Double ---
-ax1 = subplot(3, 1, 1);
+% --- Plot 1: Static Margin ---
+ax1 = subplot(4, 1, 1);
+plot(t_linearize, static_margin_calibers, '-', 'Color', '#7E2F8E', 'LineWidth', 2.5, 'DisplayName', 'Static Margin');
+hold on;
+yline(0, '--k', 'LineWidth', 1.5, 'DisplayName', 'Neutral Stability');
+plot(sm_critical_time, sm_min_val, 'ro', 'MarkerSize', 10, 'MarkerFaceColor', 'red', 'DisplayName', sprintf('Min Margin: %.2f', sm_min_val));
+text(sm_critical_time, sm_min_val, sprintf(' Min: %.2f\n t=%.1f s', sm_min_val, sm_critical_time), ...
+     'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left', 'FontSize', 10, 'FontWeight', 'bold', 'BackgroundColor', [1 1 1 0.7]);
+hold off;
+title('Static Margin (Positive = Stable)', 'FontSize', 14, 'FontWeight', 'bold');
+ylabel('Margin (calibers)', 'FontWeight', 'bold');
+legend('Location', 'best');
+grid on; box on;
+set(ax1, 'XTickLabel', []); % Remove x-axis tick labels
+
+% --- Plot 2: Time to Double ---
+ax2 = subplot(4, 1, 2);
 plot(t_linearize, time_to_double, '-', 'Color', [0, 0.4470, 0.7410], 'LineWidth', 2.5, 'DisplayName', 'Time to Double');
 hold on;
-yline(0.5, '--', 'Challenging Threshold (0.5s)', 'Color', [0.8500, 0.3250, 0.0980], 'LineWidth', 2);
-[min_val, min_idx] = min(time_to_double);
-text_str = sprintf('Min: %.2f s', min_val);
-text(t_linearize(min_idx), min_val, text_str, 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center', 'FontSize', 10, 'FontWeight', 'bold', 'BackgroundColor', [1 1 1 0.7]);
+yline(0.5, '--', 'Color', [0.8500, 0.3250, 0.0980], 'LineWidth', 2, 'DisplayName', 'Challenging Threshold (0.5s)');
+plot(ttd_critical_time, ttd_min_val, 'ro', 'MarkerSize', 10, 'MarkerFaceColor', 'red', 'DisplayName', sprintf('Critical: %.2fs at t=%.1fs', ttd_min_val, ttd_critical_time));
+text(ttd_critical_time, ttd_min_val, sprintf('  Min: %.2f s\n  t=%.1f s', ttd_min_val, ttd_critical_time), ...
+     'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'left', 'FontSize', 10, 'FontWeight', 'bold', 'BackgroundColor', [1 1 1 0.7]);
 hold off;
 title('Aerodynamic Instability', 'FontSize', 14, 'FontWeight', 'bold');
 ylabel('Time (s)', 'FontWeight', 'bold');
-legend('Location', 'northwest')
+legend('Location', 'northwest');
 grid on; box on;
+set(ax2, 'XTickLabel', []); % Remove x-axis tick labels
 
-% --- Plot 2: Nozzle Angle Comparison ---
-ax2 = subplot(3, 1, 2);
-plot(t_linearize, trim_gimbal_angle_deg, '--', 'Color', [0.4660, 0.6740, 0.1880], 'LineWidth', 2, 'DisplayName', 'Nominal Trim Angle (Magnitude)');
+% --- Plot 3: Nozzle Angle Comparison ---
+ax3 = subplot(4, 1, 3);
+plot(t_linearize, trim_gimbal_angle_deg, '--', 'Color', [0.4660, 0.6740, 0.1880], 'LineWidth', 2, 'DisplayName', 'Nominal Trim Angle');
 hold on;
-plot(t_linearize, total_gimbal_angle_deg, '-', 'Color', [0.8500, 0.3250, 0.0980], 'LineWidth', 2.5, 'DisplayName', 'Total Required Angle (Magnitude)');
+plot(t_linearize, total_gimbal_angle_deg, '-', 'Color', [0.8500, 0.3250, 0.0980], 'LineWidth', 2.5, 'DisplayName', 'Total Required Angle');
 yline(max_gimbal_angle_deg, '-.', 'Color', 'k', 'LineWidth', 1.5, 'DisplayName', sprintf('Actuator Limit (%.1f°)', max_gimbal_angle_deg));
-[max_val, max_idx] = max(total_gimbal_angle_deg); 
-text_str = sprintf('Max Required: %.2f°', max_val);
-text(t_linearize(max_idx), max_val, text_str, 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center', 'FontSize', 10, 'FontWeight', 'bold', 'BackgroundColor', [1 1 1 0.7]);
+plot(gimbal_critical_time, gimbal_max_val, 'ro', 'MarkerSize', 10, 'MarkerFaceColor', 'red', 'DisplayName', sprintf('Critical: %.2f° at t=%.1fs', gimbal_max_val, gimbal_critical_time));
+text(gimbal_critical_time, gimbal_max_val, sprintf('  Max: %.2f°\n  t=%.1f s', gimbal_max_val, gimbal_critical_time), ...
+     'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center', 'FontSize', 10, 'FontWeight', 'bold', 'BackgroundColor', [1 1 1 0.7]);
 hold off;
-title({'Nozzle Angle Requirement (Magnitudes)', ...
+title({'Nozzle Angle Requirement', ...
        sprintf('(Max AoA=%.1f°, Gust=%.1fm/s, CG Offset=%.2fm, Thrust Misalign=%.2f°)', ...
        max_alpha_for_trim_deg, wind_gust_mps, cg_offset_m, thrust_misalignment_deg)}, ...
        'FontSize', 14, 'FontWeight', 'bold');
-ylabel('Gimbal Angle Mag. (deg)', 'FontWeight', 'bold');
+ylabel('Gimbal Angle (deg)', 'FontWeight', 'bold');
 legend('show', 'Location', 'northwest');
 ylim([0, max(ylim)*1.1]);
 grid on; box on;
+set(ax3, 'XTickLabel', []); % Remove x-axis tick labels
 
-% --- Plot 3: Controllability Ratio Comparison ---
-ax3 = subplot(3, 1, 3);
+% --- Plot 4: Controllability Ratio ---
+ax4 = subplot(4, 1, 4);
 plot(t_linearize, controllability_ratio, '-', 'Color', [0, 0.4470, 0.7410], 'LineWidth', 2.5, 'DisplayName', 'Controllability Ratio');
 hold on;
-yline(2.0, '--', 'Recommended Design Goal (CR > 2.0)', 'Color', [0.8500, 0.3250, 0.0980], 'LineWidth', 2);
-yline(1.0, ':', 'Color', 'k', 'LineWidth', 2, 'DisplayName', 'Absolute Physical Limit (CR > 1.0)');
-[min_val, min_idx] = min(controllability_ratio);
-text_str = sprintf('Min CR: %.2f', min_val);
-text(t_linearize(min_idx), min_val, text_str, 'VerticalAlignment', 'bottom', 'HorizontalAlignment', 'center', 'FontSize', 10, 'FontWeight', 'bold', 'BackgroundColor', [1 1 1 0.7]);
+yline(2.0, '--', 'Color', [0.8500, 0.3250, 0.0980], 'LineWidth', 2, 'DisplayName', 'Design Goal (CR > 2.0)');
+yline(1.0, ':', 'Color', 'k', 'LineWidth', 2, 'DisplayName', 'Physical Limit (CR > 1.0)');
+plot(cr_critical_time, cr_min_val, 'ro', 'MarkerSize', 10, 'MarkerFaceColor', 'red', 'DisplayName', sprintf('Critical: %.2f at t=%.1fs', cr_min_val, cr_critical_time));
+text(cr_critical_time, cr_min_val, sprintf('  Min: %.2f\n  t=%.1f s', cr_min_val, cr_critical_time), ...
+     'VerticalAlignment', 'top', 'HorizontalAlignment', 'center', 'FontSize', 10, 'FontWeight', 'bold', 'BackgroundColor', [1 1 1 0.7]);
 hold off;
 title({'Controllability Ratio (CR = Available Authority / Required Authority)', ...
        '(Includes all trim, disturbance, and offset effects)'}, ...
        'FontSize', 14, 'FontWeight', 'bold');
 xlabel('Flight Time (s)', 'FontWeight', 'bold');
 ylabel('Ratio', 'FontWeight', 'bold');
-legend('Location', 'northeast');
+legend('show', 'Location', 'northeast');
 grid on; box on;
 
 % Link x-axes for all plots for synchronized zooming
-linkaxes([ax1, ax2, ax3], 'x');
+linkaxes([ax1, ax2, ax3, ax4], 'x');
 xlim([t_linearize(1), t_linearize(end)]);
-
 
 %% Helper Function (unchanged)
 function signal_obj = get_nested_signal(logsout_data, path_str)
