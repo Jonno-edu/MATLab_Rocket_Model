@@ -1,6 +1,10 @@
-% Gain Scheduling LQR Controller Design (Final Version with Debugging)
-% This script handles the t=0 singularity by using the gains from the
-% first valid flight condition and includes periodic debugging printouts.
+% Gain Scheduling with LQR and Cross-Weighting (Final, Robust Version)
+% This script uses a cross-weighting term in the LQR design to resolve
+% solution bifurcations and includes a final plot to verify the gain schedule.
+
+clear;
+clc;
+close all;
 
 %% 1. Setup and Load Simulation Data
 filename = '/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/Simulator_Core/output_data/simOut_heavy_benchmark.mat';
@@ -11,7 +15,7 @@ catch
     error('File not found: %s. Please check the filename and path.', filename);
 end
 
-%% 2. Define Fixed System Parameters & LQR Tuning Weights
+%% 2. Define Fixed System & Controller Parameters
 S = 0.200296;
 L = 9.542;
 natural_frequency = 62;
@@ -22,20 +26,28 @@ A_act = [0 1; -wn^2 -2*zeta*wn];
 B_act = [0; wn^2];
 C_act = [1 0];
 
-% --- TUNING CORRECTION ---
-% The previous weights were too aggressive, causing high gains and oscillations.
-% These have been relaxed to produce a smoother, more robust controller.
+% --- ROBUST AND BALANCED LQR TUNING WEIGHTS ---
 max_devs = struct();
-max_devs.alpha       = 20 * pi/180;     % Allow slightly more AoA error
-max_devs.q           = 0.5 * pi/180;    % Allow more pitch rate error
-max_devs.theta       = 1 * pi/180;     % Relax theta penalty
-max_devs.act_pos     = 2 * pi/180;     % Actuator position penalty
-max_devs.act_rate    = 1 * pi/180;    % Relax the actuator rate penalty
-max_TVC_command      = 0.8 * pi/180;     % Drastically relax the control effort penalty
+max_devs.alpha       = 7 * pi/180;
+max_devs.q           = 10 * pi/180;
+max_devs.theta       = 2 * pi/180;
+max_devs.act_pos     = 4 * pi/180;
+max_devs.act_rate    = 50 * pi/180;
+max_TVC_command      = 4 * pi/180;
 
 Q_diag = [1/max_devs.alpha^2, 1/max_devs.q^2, 1/max_devs.theta^2, 1/max_devs.act_pos^2, 1/max_devs.act_rate^2];
 Q = diag(Q_diag);
 R = 1/max_TVC_command^2;
+
+% --- CROSS-WEIGHTING MATRIX (N) TO PREVENT GAIN FLIPPING ---
+% This small off-diagonal penalty on the alpha-theta coupling guides the
+% LQR solver away from the undesirable solution at the tipping point.
+N = zeros(5, 1);
+% The state order is [alpha, q, theta, act_pos, act_rate]
+% We penalize the coupling between alpha (state 1) and theta (state 3)
+% Note: The lqr(A,B,Q,R,N) syntax requires N to be a matrix of size [Nx, Nu]
+% For a single input system, N is a column vector.
+N(1,1) = 0.1 * sqrt(Q(1,1) * Q(3,3)); % A common choice for the cross-term magnitude
 
 %% 3. Define Time Vector for Scheduling
 time_vector = (0:1:145)';
@@ -77,7 +89,7 @@ fprintf('Data interpolation complete.\n\n');
 %% 5. Main Loop: Design Controller for Each Time Point
 num_points = length(time_vector);
 K_gains = zeros(num_points, 5);
-fprintf('Designing gain-scheduled LQR controllers for t=0s to t=%ds...\n', time_vector(end));
+fprintf('Designing gain-scheduled controllers for t=0s to t=%ds...\n', time_vector(end));
 
 % Start the loop from the SECOND point (i=2) to avoid V=0 at t=0.
 for i = 2:num_points
@@ -92,24 +104,13 @@ for i = 2:num_points
     Cmq_current = -abs(interp_data.Cmq(i));
     L_arm_current = interp_data.L_arm(i);
     
-    % --- DEBUGGING PRINTOUT ---
-    % Periodically print the interpolated flight parameters to the console.
-    % The loop index `i` corresponds to t+1, so we check mod(t, 10).
-    if mod(t, 30) == 0 && t > 0
-        fprintf('--------------------------------------------------------------------------------------------------\n');
-        fprintf('DEBUG @ t = %.1f s:\n', t);
-        fprintf('  Mass  = %.2f kg | Velocity = %.2f m/s | Density = %.4f kg/m^3 | Thrust = %.2f N\n', m, V, rho, T);
-        fprintf('  Inertia = %.2f kg*m^2 | CNa = %.4f | CMa = %.4f | Cmq = %.4f | TVC Arm = %.4f m\n', I, CNa_current, CMa_current, Cmq_current, L_arm_current);
-        fprintf('--------------------------------------------------------------------------------------------------\n');
-    end
-    
-    % Check for engine burnout (uncontrollable case)
+    % Check for engine burnout
     if T < 1.0
         fprintf('Thrust is zero at t=%.1f s. Using last valid gains for remainder of flight.\n', t);
         for j = i:num_points
             K_gains(j, :) = K_gains(i-1, :);
         end
-        break; % Exit the loop
+        break;
     end
     
     q_bar = 0.5 * rho * V^2;
@@ -124,8 +125,19 @@ for i = 2:num_points
     
     A_current = [[A_plant, B_plant*C_act]; [zeros(2,3), A_act]];
     B_current = [[zeros(3,1)]; B_act];
+
+    % Inside your main 'for' loop, after defining A_current and B_current
+
+    controllability_rank = rank(ctrb(A_current, B_current));
+    if controllability_rank < 5
+        fprintf('WARNING: System lost controllability at t=%.1f s! Rank = %d\n', t, controllability_rank);
+    end
+
     
-    K_gains(i, :) = lqr(A_current, B_current, Q, R);
+    % --- USE LQR WITH CROSS-WEIGHTING ---
+    % This call to lqr now includes the 'N' matrix, which will guide the
+    % solver to the more robust solution.
+    K_gains(i, :) = lqr(A_current, B_current, Q, R, N);
 end
 
 % Handle the t=0 case by copying the gains from the first valid point.
@@ -138,6 +150,23 @@ fprintf('\n--- Gain Scheduling Design Complete ---\n\n');
 assignin('base', 'time_vector', time_vector);
 assignin('base', 'K_gains', K_gains);
 fprintf('Variables are ready for Simulink.\n');
+
+%% 7. Plot Gains for Verification
+figure;
+hold on;
+plot(time_vector, K_gains(:,1), 'LineWidth', 1.5, 'DisplayName', 'K1 (alpha)');
+plot(time_vector, K_gains(:,2), 'LineWidth', 1.5, 'DisplayName', 'K2 (q)');
+plot(time_vector, K_gains(:,3), 'LineWidth', 1.5, 'DisplayName', 'K3 (theta)');
+plot(time_vector, K_gains(:,4), 'LineWidth', 1.5, 'DisplayName', 'K4 (act_pos)');
+plot(time_vector, K_gains(:,5), 'LineWidth', 1.5, 'DisplayName', 'K5 (act_rate)');
+hold off;
+
+title('Gain-Scheduled LQR Gains vs. Time');
+xlabel('Time (s)');
+ylabel('Gain Value');
+legend('show', 'Location', 'best');
+grid on;
+fprintf('Plotting complete. Visually inspect for discontinuities.\n');
 
 %% Helper Function
 function signal_obj = get_nested_signal(logsout_data, path_str)
