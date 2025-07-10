@@ -33,13 +33,13 @@ simOut = sim(modelName, 'StopTime', num2str(simTime));
 disp('Simulink simulation finished.');
 
 % --- Save simulation output to a .mat file ---
-%disp('Saving simulation output to simOut.mat...');
-%save('simOut.mat', 'simOut');
-% disp('Save complete.');
+disp('Saving simulation output to simOut.mat...');
+save('simOut.mat', 'simOut');
+disp('Save complete.');
 
 % --- Generate CSV for Blender using the new function ---
 % You can specify a custom suffix if desired, e.g., '_my_specific_run_60fps'
-generate_blender_csv(simOut); % Uses default suffix
+% generate_blender_csv(simOut); % Uses default suffix
 
 % --- Plot results ---
 % disp('Calling plot_simulation_results...');

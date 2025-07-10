@@ -1,8 +1,8 @@
 % --- Script to Combine, Interpolate (Natural Method), Plot (Gradient), and Export ---
 clear; clc; close all;
 
+%% Setup
 fprintf('Loading raw aerodynamic data...\n');
-% --- Load Raw Data ---
 excelFilePath = '/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/MATLAB_Toolbox/Aero_Data_Processing/raw_data_input/STeVe V1 No Fins.xlsx';
 
 % Import options for "Aero Properties" (0-4 deg)
@@ -27,220 +27,158 @@ optsS3 = setvaropts(optsS3, "Reynolds", "EmptyFieldRule", "auto");
 STeVeV1NoFinsS3 = readtable(excelFilePath, optsS3, "UseExcel", false);
 fprintf('Raw data loaded.\n');
 
-% --- Define Constants and Parameters ---
-% Define the coefficients required (REMOVED CAPower_Off)
-coeffNames = {'CN', 'CAPower_On', 'CP', 'Cnalpha_0_4deg__perRad_'}; % Removed 'CAPower_Off'
-fprintf('Processing coefficients: %s\n', strjoin(coeffNames, ', '));
-
-% Create interpreter-safe names for plotting labels/titles
+%% Define Constants and Parameters
+coeffNames = {'CN', 'CAPower_On', 'CP', 'Cnalpha_0_4deg__perRad_'};
 coeffNamesSafe = strrep(coeffNames, '_', '\_');
-
-% Define Mach limit
 machLimit = 7.0;
-fprintf('Applying Mach limit: Mach <= %.1f\n', machLimit);
-
-% Conversion factor for CP
 inch_to_meter = 0.0254;
+interpolationMethod = 'linear';
+extrapolationMethod = 'nearest';
 
-% Define the chosen interpolation method
-interpolationMethod = 'natural'; % Using 'natural' neighbor interpolation
-extrapolationMethod = 'nearest'; % Keep extrapolation consistent
-
-fprintf('Chosen Interpolation Method: %s\n', interpolationMethod);
-
-% --- Filter Raw Data (Apply Mach Limit Early) ---
+%% Filter Raw Data
 S2_filtered = STeVeV1NoFinsS2(STeVeV1NoFinsS2.Mach <= machLimit, :);
 S3_filtered = STeVeV1NoFinsS3(STeVeV1NoFinsS3.Mach <= machLimit, :);
-fprintf('Raw data filtered by Mach limit.\n');
 
-% --- Prepare Data for Combination ---
-fprintf('Preparing and combining filtered data for interpolation...\n');
-S2_for_combine = S2_filtered(S2_filtered.Alpha <= 4, :);
-S3_for_combine = S3_filtered(S3_filtered.Alpha > 4, :);
-combinedMach = [S2_for_combine.Mach; S3_for_combine.Mach];
-combinedAlpha = [S2_for_combine.Alpha; S3_for_combine.Alpha];
+%% Generate Negative Alpha Data Based on Symmetry
+fprintf('\n--- Generating Negative Alpha Data (Corrected Logic) ---\n');
+
+% Isolate ONLY the strictly positive alpha data for mirroring
+S2_pos_only = S2_filtered(S2_filtered.Alpha > 0, :);
+S3_pos_only = S3_filtered(S3_filtered.Alpha > 0, :);
+
+% Create the mirrored negative-alpha tables
+S2_neg = S2_pos_only;
+S3_neg = S3_pos_only;
+S2_neg.Alpha = -S2_neg.Alpha;
+S3_neg.Alpha = -S3_neg.Alpha;
+
+% Apply symmetry rules based on physical properties
+odd_coeffs = {'CN'}; % CN is an odd function
+even_coeffs = {'CAPower_On', 'CP', 'Cnalpha_0_4deg__perRad_'}; % CA, CP, and Cnalpha are even
+
+% Flip signs for odd coefficients
+for i = 1:length(odd_coeffs)
+    coeff = odd_coeffs{i};
+    if ismember(coeff, S2_neg.Properties.VariableNames), S2_neg.(coeff) = -S2_neg.(coeff); end
+    if ismember(coeff, S3_neg.Properties.VariableNames), S3_neg.(coeff) = -S3_neg.(coeff); end
+end
+
+% Combine the ORIGINAL data with the NEW negative data
+S2_symmetric = [S2_neg; S2_filtered];
+S3_symmetric = [S3_neg; S3_filtered];
+fprintf('Negative alpha data generated and combined correctly.\n\n');
+
+%% Prepare and Combine Data for Interpolation
+fprintf('Preparing and combining symmetric data for interpolation...\n');
 combinedCoeffs = struct();
-% Loop uses the updated coeffNames list (without CAPower_Off)
+
 for i = 1:length(coeffNames)
     coeff = coeffNames{i};
-    if ismember(coeff, S2_for_combine.Properties.VariableNames) && ismember(coeff, S3_for_combine.Properties.VariableNames)
-        tempCoeffData = [S2_for_combine.(coeff); S3_for_combine.(coeff)];
-        if strcmp(coeff, 'CP')
-            fprintf('  Converting combined CP from inches to meters for processing...\n');
-            tempCoeffData = tempCoeffData * inch_to_meter;
-        end
-        combinedCoeffs.(coeff) = tempCoeffData;
+    
+    if strcmp(coeff, 'Cnalpha_0_4deg__perRad_')
+        fprintf('  - Special handling for %s: using low-alpha data only.\n', coeff);
+        combinedMach = S2_symmetric.Mach;
+        combinedAlpha = S2_symmetric.Alpha;
+        tempCoeffData = S2_symmetric.(coeff);
     else
-        warning('Coefficient %s not found consistently for processing, skipping.', coeff);
+        S2_for_combine = S2_symmetric(abs(S2_symmetric.Alpha) <= 4, :);
+        S3_for_combine = S3_symmetric(abs(S3_symmetric.Alpha) > 4, :);
+        
+        combinedMach = [S2_for_combine.Mach; S3_for_combine.Mach];
+        combinedAlpha = [S2_for_combine.Alpha; S3_for_combine.Alpha];
+        tempCoeffData = [S2_for_combine.(coeff); S3_for_combine.(coeff)];
     end
+    
+    if strcmp(coeff, 'CP'), tempCoeffData = tempCoeffData * inch_to_meter; end
+    
+    nan_mask = isnan(tempCoeffData);
+    combinedMach(nan_mask) = [];
+    combinedAlpha(nan_mask) = [];
+    tempCoeffData(nan_mask) = [];
+    
+    combinedCoeffs.(coeff).Mach = combinedMach;
+    combinedCoeffs.(coeff).Alpha = combinedAlpha;
+    combinedCoeffs.(coeff).Value = tempCoeffData;
 end
-if isempty(combinedMach) || isempty(combinedAlpha)
-    error('No data points remain after filtering for combination. Check Mach/Alpha ranges.');
-end
-[uniqueMA, ia, ~] = unique([combinedMach, combinedAlpha], 'rows', 'stable');
-combinedMach = uniqueMA(:, 1);
-combinedAlpha = uniqueMA(:, 2);
-activeCoeffNames = fieldnames(combinedCoeffs);
-for i = 1:length(activeCoeffNames)
-     coeff = activeCoeffNames{i};
-     combinedCoeffs.(coeff) = combinedCoeffs.(coeff)(ia);
-end
-fprintf('Data preparation complete. %d unique data points for interpolation.\n', length(combinedMach));
+fprintf('Data preparation complete.\n');
 
-% --- Define Target Grid ---
-fprintf('Defining target interpolation grid...\n');
+%% Define and Interpolate onto Target Grid
+% --- THIS SECTION IS CORRECTED ---
 numMachPoints = 60;
 numAlphaPoints = 50;
-minGridMach = min(combinedMach);
-maxGridMach = max(combinedMach);
-targetMach = linspace(minGridMach, maxGridMach, numMachPoints);
-minGridAlpha = min(combinedAlpha);
-maxGridAlpha = max(combinedAlpha);
-if minGridAlpha > 0
-    warning('Minimum combined Alpha is %.2f > 0. Grid starts from here.', minGridAlpha);
-end
-if maxGridAlpha < 15
-     warning('Maximum combined Alpha is %.2f < 15. Grid ends here.', maxGridAlpha);
-end
-targetAlpha = linspace(minGridAlpha, maxGridAlpha, numAlphaPoints);
+
+% Define Mach grid from the full range of S2 (low alpha sheet covers full Mach range)
+targetMach = linspace(min(S2_symmetric.Mach), max(S2_symmetric.Mach), numMachPoints);
+
+% Define Alpha grid from the combined range of BOTH sheets
+fullAlphaRange = [S2_symmetric.Alpha; S3_symmetric.Alpha];
+targetAlpha = linspace(min(fullAlphaRange), max(fullAlphaRange), numAlphaPoints);
+
 [MachGrid, AlphaGrid] = meshgrid(targetMach, targetAlpha);
-fprintf('Target grid defined (Mach: %d points, Alpha: %d points).\n', numMachPoints, numAlphaPoints);
+fprintf('Target grid defined over full alpha range (%.2f to %.2f deg).\n', min(targetAlpha), max(targetAlpha));
+% --- END OF CORRECTION ---
 
-% --- Interpolate onto Target Grid (Using chosen 'natural' method) ---
-fprintf('Interpolating coefficients onto grid using "%s" method...\n', interpolationMethod);
+
 interpolatedTables = struct();
-
-currentActiveCoeffNames = fieldnames(combinedCoeffs); % Will not include CAPower_Off
-for i = 1:length(currentActiveCoeffNames)
-    coeff = currentActiveCoeffNames{i};
+for i = 1:length(coeffNames)
+    coeff = coeffNames{i};
     fprintf('  Interpolating %s...\n', coeff);
-    try
-        F_interp = scatteredInterpolant(combinedMach, combinedAlpha, combinedCoeffs.(coeff), ...
-                                        interpolationMethod, extrapolationMethod);
-        interpolatedTables.(coeff) = F_interp(MachGrid, AlphaGrid);
-         fprintf('  Done.\n');
-    catch ME
-        warning('Interpolation failed for %s with method %s: %s. Skipping coefficient.', coeff, interpolationMethod, ME.message);
-         if isfield(interpolatedTables, coeff)
-            interpolatedTables = rmfield(interpolatedTables, coeff);
-        end
-    end
+    
+    sourceMach = combinedCoeffs.(coeff).Mach;
+    sourceAlpha = combinedCoeffs.(coeff).Alpha;
+    sourceValue = combinedCoeffs.(coeff).Value;
+    
+    [uniqueMA, ia, ~] = unique([sourceMach, sourceAlpha], 'rows', 'stable');
+    
+    F_interp = scatteredInterpolant(uniqueMA(:,1), uniqueMA(:,2), sourceValue(ia), interpolationMethod, extrapolationMethod);
+    interpolatedTables.(coeff) = F_interp(MachGrid, AlphaGrid);
+    fprintf('  Done.\n');
 end
 fprintf('Interpolation complete.\n');
 
-finalCoeffNames = fieldnames(interpolatedTables);
-if isempty(finalCoeffNames)
-    error('No coefficients were successfully interpolated with method "%s". Halting execution.', interpolationMethod);
-end
-
-% --- Package Data for Export ---
-fprintf('Packaging data for export...\n');
+%% Package and Export Data
 CombinedAeroData = struct();
-CombinedAeroData.Breakpoints = struct();
-CombinedAeroData.Tables = struct();
 CombinedAeroData.Breakpoints.Mach = targetMach(:)';
 CombinedAeroData.Breakpoints.Alpha = targetAlpha(:)';
-% Loop uses finalCoeffNames, which won't include CAPower_Off
+finalCoeffNames = fieldnames(interpolatedTables);
 for i = 1:length(finalCoeffNames)
      coeff = finalCoeffNames{i};
      CombinedAeroData.Tables.(coeff) = interpolatedTables.(coeff);
 end
-CombinedAeroData.Info.Description = sprintf('Combined and interpolated aero data (Alpha %.2f-%.2f deg, Mach %.2f-%.2f)', minGridAlpha, maxGridAlpha, minGridMach, maxGridMach);
-CombinedAeroData.Info.SourceFiles = {optsS2.Sheet, optsS3.Sheet};
-CombinedAeroData.Info.GenerationDate = datetime('now');
-CombinedAeroData.Info.InterpolationMethod = interpolationMethod;
-CombinedAeroData.Info.ExtrapolationMethod = extrapolationMethod;
-fprintf('Data packaged.\n');
 
-% --- Export Data to MAT File ---
 targetFolder = '/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/MATLAB_Toolbox/Aero_Data_Processing/generated_aero_data';
-outputFileName = fullfile(targetFolder, 'CombinedAeroData_Grid.mat');
-fprintf('Saving combined data (using %s interpolation) to %s...\n', interpolationMethod, outputFileName);
-save(outputFileName, 'CombinedAeroData'); % CAPower_Off will not be in this structure
-fprintf('Data saved successfully.\n');
+outputFileName = fullfile(targetFolder, 'CombinedAeroData_Grid_Symmetric_Corrected.mat');
+save(outputFileName, 'CombinedAeroData');
+fprintf('Data saved successfully to %s.\n', outputFileName);
 
-% --- Combined Visualization: Raw (Color-Coded) and Interpolated Grid Points (Gradient Color) ---
-fprintf('Generating combined scatter plots (Raw data + Interpolated Grid using %s with gradient color)...\n', interpolationMethod);
-finalCoeffNamesSafe = strrep(finalCoeffNames, '_', '\_'); % Will not include CAPower_Off
-
-% Raw data plot settings
-colorS2 = 'blue';
-colorS3 = 'red';
-markerSizeRaw = 20;
-
-% Interpolated grid plot settings
-markerGrid = 'o';
-markerSizeGrid = 30;
-markerAlphaGrid = 0.7;
-
-% Loop uses finalCoeffNames, which won't include CAPower_Off
+%% Visualization
+fprintf('Generating combined scatter plots...\n');
 for i = 1:length(finalCoeffNames)
     coeff = finalCoeffNames{i};
-    coeffSafe = finalCoeffNamesSafe{i};
+    coeffSafe = strrep(coeff, '_', '\_');
 
     figure;
     hold on;
 
-    % --- Plot 1: Interpolated Grid Points (Gradient Color) ---
     coeffDataGrid = CombinedAeroData.Tables.(coeff);
-    mach_vector_grid = MachGrid(:);
-    alpha_vector_grid = AlphaGrid(:);
-    coeff_vector_grid = coeffDataGrid(:);
-    zLabelString = coeffSafe;
-    if strcmp(coeff, 'CP')
-        zLabelString = 'CP (m)';
-    end
+    scatter3(MachGrid(:), AlphaGrid(:), coeffDataGrid(:), 30, coeffDataGrid(:), 'o', 'filled', 'MarkerFaceAlpha', 0.7, 'DisplayName', 'Interpolated Grid');
 
-    scatter3(mach_vector_grid, alpha_vector_grid, coeff_vector_grid, ...
-             markerSizeGrid, ...
-             coeff_vector_grid, ...
-             markerGrid, ...
-             'filled', ...
-             'MarkerFaceAlpha', markerAlphaGrid, ...
-             'DisplayName', ['Interpolated Grid (', interpolationMethod, ')']);
-
-    % --- Plot 2: Raw Data from S2_filtered ---
-    if ismember(coeff, S2_filtered.Properties.VariableNames)
-        mach_S2 = S2_filtered.Mach;
-        alpha_S2 = S2_filtered.Alpha;
-        coeff_S2 = S2_filtered.(coeff);
-        if strcmp(coeff, 'CP')
-            coeff_S2 = coeff_S2 * inch_to_meter;
-        end
-        scatter3(mach_S2, alpha_S2, coeff_S2, markerSizeRaw, colorS2, 'filled', ...
-                 'DisplayName', 'Source: 0-4 deg Sheet');
-    else
-         fprintf('  Skipping raw S2 plot for %s (not found in S2_filtered).\n', coeff);
-    end
-
-    % --- Plot 3: Raw Data from S3_filtered ---
-    if ismember(coeff, S3_filtered.Properties.VariableNames)
-        mach_S3 = S3_filtered.Mach;
-        alpha_S3 = S3_filtered.Alpha;
-        coeff_S3 = S3_filtered.(coeff);
-        if strcmp(coeff, 'CP')
-            coeff_S3 = coeff_S3 * inch_to_meter;
-        end
-        scatter3(mach_S3, alpha_S3, coeff_S3, markerSizeRaw, colorS3, 'filled', ...
-                 'DisplayName', 'Source: 0-15 deg Sheet');
-    else
-        fprintf('  Skipping raw S3 plot for %s (not found in S3_filtered).\n', coeff);
-    end
-
+    rawMach = combinedCoeffs.(coeff).Mach;
+    rawAlpha = combinedCoeffs.(coeff).Alpha;
+    rawValue = combinedCoeffs.(coeff).Value;
+    scatter3(rawMach, rawAlpha, rawValue, 20, 'red', 'filled', 'DisplayName', 'Source Data Points');
+    
     xlabel('Mach');
     ylabel('Alpha (deg)');
-    zlabel(zLabelString, 'Interpreter', 'tex');
-    title(['Combined Plot (Method: ', interpolationMethod, '): ', coeffSafe, ' vs Mach vs Alpha'], 'Interpreter', 'tex');
+    zlabel(coeffSafe, 'Interpreter', 'tex');
+    title(['Combined Plot: ', coeffSafe], 'Interpreter', 'tex');
+    
     colormap(gca, 'parula');
     colorbar;
     legend('show', 'Location', 'best');
     grid on;
     view(-30, 30);
     hold off;
-
     fprintf('  Generated combined plot for %s.\n', coeff);
 end
-fprintf('All combined plots generated.\n');
-
-fprintf('\n--- Processing Finished ---\n');
-
+fprintf('All combined plots generated.\n\n--- Processing Finished ---\n');

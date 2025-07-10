@@ -13,7 +13,7 @@ projectRoot = fileparts(fileparts(mfilename('fullpath'))); % Goes up two levels 
 % Input data for the simulator core
 heavySteveDataFilePath      = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'Heavy_STeVe_Data.xlsx');
 contourFilePath       = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'rocket_geometry.xlsx');
-aeroMatFilePath       = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'aero_lookup_data.mat');
+aeroMatFilePath       = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'CombinedAeroData_Grid_Symmetric_Corrected.mat');
 thrustDataFilePath    = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'thrust_curve.xlsx');
 controllerConfigPath  = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'controller_config.mat'); % For loading controller gains
 
