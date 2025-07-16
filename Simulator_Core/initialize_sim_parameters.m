@@ -55,8 +55,7 @@ Sim.Timestep = 0.0001;
 Sim.Time = 140;
 sim_params.Sim = Sim;
 
-Initial.Conditions.theta0 = deg2rad(90.01);         % Initial pitch [deg]
-Initial.Conditions.tiltAngle = deg2rad(74.5);    % Initial pitch [deg]
+Initial.Conditions.theta0 = deg2rad(91);         % Initial pitch [deg]
 Initial.Conditions.pitchRate = (0.0);           % Pitch rate [deg/s]
 
 % --- Conditional Initial Conditions for Unit Testing ---
@@ -79,12 +78,12 @@ if unit_test
         fprintf('  - Initial Altitude (h0): %.2f m\n', Initial.Conditions.h0);
     catch ME
         warning('Could not find "params" struct in base workspace for unit test. Defaulting to 0.');
-        Initial.Conditions.V0 = 0.1;
+        Initial.Conditions.V0 = 0.01;
         Initial.Conditions.h0 = 0;
     end
 else
     fprintf('STANDARD MODE: Using default initial conditions.\n');
-    Initial.Conditions.V0 = 0.1;                     % Initial velocity [m/s]
+    Initial.Conditions.V0 = 0.01;                     % Initial velocity [m/s]
     Initial.Conditions.h0 = 0;                       % Initial altitude [m] (positive up)
 end
 % --- End of Section ---
@@ -97,7 +96,7 @@ Actuators.Nozzle.RateLimit = deg2rad(150);       % rate_lim_nozzle [rad/s]
 Actuators.Engine.MaxThrust = (27.6*10^3)*1;      % max_thrust [N]
 sim_params.Actuators = Actuators;
 
-Wind.shear = 20;                                % Wind shear [m/s]
+Wind.shear = 0;                                % Wind shear [m/s]
 sim_params.Wind = Wind;
 
 
