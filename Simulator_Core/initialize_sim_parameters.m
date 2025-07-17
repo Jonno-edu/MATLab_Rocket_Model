@@ -55,7 +55,7 @@ Sim.Timestep = 0.0001;
 Sim.Time = 140;
 sim_params.Sim = Sim;
 
-Initial.Conditions.theta0 = deg2rad(91);         % Initial pitch [deg]
+Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
 Initial.Conditions.pitchRate = (0.0);           % Pitch rate [deg/s]
 
 % --- Conditional Initial Conditions for Unit Testing ---
