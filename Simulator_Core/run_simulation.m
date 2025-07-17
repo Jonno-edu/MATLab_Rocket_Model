@@ -7,9 +7,6 @@ close all;  % Close all open figure windows
 
 fprintf('--- Starting New Simulation Run ---\n');
 
-lqr_gain_scedule;
-%LQR_Controller_Design
-
 % Initialize parameters
 disp('Initializing simulation parameters...');
 sim_params = initialize_sim_parameters();
