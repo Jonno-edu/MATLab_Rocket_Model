@@ -39,6 +39,6 @@ disp('Simulink simulation finished.');
 generate_blender_csv(simOut); % Uses default suffix
 
 % --- Plot results ---
-disp('Calling plot_simulation_results...');
-plot_simulation_results(simOut); % Pass the original simOut
-disp('--- Simulation Run Complete ---');
+% disp('Calling plot_simulation_results...');
+% plot_simulation_results(simOut); % Pass the original simOut
+% disp('--- Simulation Run Complete ---');
