@@ -1,7 +1,19 @@
 import bpy
+from mathutils import Vector
 import csv
 import math
-from mathutils import Vector, Quaternion
+import os
+import logging
+import warnings
+
+# Suppress BlenderGIS debug messages
+logging.getLogger("BlenderGIS-master").setLevel(logging.CRITICAL)
+
+# Suppress the specific bgl warning
+warnings.filterwarnings("ignore", message=".*'bgl' imported without an OpenGL backend.*")
+
+# Get the directory of the blend file
+blend_file_directory = os.path.dirname(bpy.data.filepath)
 
 # --- USER SETTINGS ---
 # File path to your CSV (make sure it's the one from the corrected MATLAB script)
@@ -77,22 +89,29 @@ def create_trajectory_curve(points, name="RocketTrajectory"):
     # Add material to the curve
     mat = bpy.data.materials.new(f"{name}_material")
     mat.diffuse_color = TRAJECTORY_COLOR  # Cyan color
-    curve_obj.data.materials.append(mat)
+    curve_obj.data.materials.append(mat) # type: ignore
     
     # Link the curve to the scene
-    bpy.context.collection.objects.link(curve_obj)
+    if bpy.context.collection:
+        bpy.context.collection.objects.link(curve_obj)
+    elif bpy.context.scene:
+        bpy.context.scene.collection.objects.link(curve_obj)
     print(f"Created trajectory curve with {len(points)} points")
     
     return curve_obj
 
 print(f"Reading CSV for {ROCKET_LENGTH_M}m rocket simulation...")
+# Initialize column indices to None
+col_t = col_px = col_py = col_pz = col_pitch = col_cg_bx = col_cg_by = col_cg_bz = col_nozzle = col_thrust_norm = None
+
+# Open and read the CSV file
 try:
-    with open(csv_file_path, 'r') as file:
-        csv_reader = csv.reader(file)
+    with open(csv_file_path, 'r') as csvfile:
+        csvreader = csv.reader(csvfile)
+        header = next(csvreader)
+        print(f"CSV Header: {header}")
+        # Find column indices from header
         try:
-            header = next(csv_reader)
-            print(f"CSV Header: {header}")
-            # Find column indices from header
             col_t = header.index('time_s')
             col_px = header.index('pos_x_m')
             col_py = header.index('pos_y_m')
@@ -115,13 +134,13 @@ try:
             all_rows = []
             
             # Make a first pass through the file to collect trajectory points
-            for i, row in enumerate(csv_reader):
+            for i, row in enumerate(csvreader):
                 try:
                     # Read position data
-                    time_s = float(row[col_t])
-                    sim_pos_x = float(row[col_px])
-                    sim_pos_y = float(row[col_py])
-                    sim_pos_z = float(row[col_pz]) + ROCKET_LENGTH_M
+                    time_s = float(row[col_t]) # type: ignore
+                    sim_pos_x = float(row[col_px]) # type: ignore
+                    sim_pos_y = float(row[col_py]) # type: ignore
+                    sim_pos_z = float(row[col_pz]) + ROCKET_LENGTH_M # type: ignore
                     
                     # Store trajectory point
                     trajectory_points.append((sim_pos_x, sim_pos_y, sim_pos_z))
@@ -173,7 +192,7 @@ try:
                     blender_pitch_rad = math.pi/2.0 - sim_pitch_rad # Correct calculation
                     
                     rocket.rotation_mode = 'XYZ'
-                    rocket.rotation_euler = (0, blender_pitch_rad, 0)  # Y-axis rotation
+                    rocket.rotation_euler = (0, blender_pitch_rad - math.pi/2, 0)  # Y-axis rotation
                     rocket.keyframe_insert(data_path="rotation_euler", frame=frame)
 
                     # 4. Set Nozzle LOCAL Rotation (Relative to RocketBody parent)
@@ -186,30 +205,28 @@ try:
                     nozzle.rotation_euler = (0, nozzle_global_angle_rad, 0)
                     nozzle.keyframe_insert(data_path="rotation_euler", frame=frame)
                     
-                    # 5. Scale Flame based on Normalized Thrust
-                    # Assuming flame's default scale is (1,1,1) and it points down Z
-                    # We scale the Z axis based on thrust. Adjust axis if needed.
-                    flame.scale = (flame_scale_multiplier, flame_scale_multiplier*thrust_normalized, flame_scale_multiplier) 
+                    # 5. Scale Flame based on Normalize
+                    flame.scale = Vector((thrust_normalized * flame_scale_multiplier, thrust_normalized * flame_scale_multiplier, thrust_normalized * flame_scale_multiplier))
                     flame.keyframe_insert(data_path="scale", frame=frame)
 
-                    # Debug info (every 100th frame)
-                    if i % 1000 == 0:
-                        print(f"Frame {frame}: CG at ({sim_pos_x:.2f}, {sim_pos_y:.2f}, {sim_pos_z:.2f}), "
-                              f"Pitch={sim_pitch_rad*180/math.pi:.1f}°, "
-                              f"CG offset from nose={cg_from_nose_x:.3f}m, "
-                              f"ThrustNorm={thrust_normalized:.2f}") # Added thrust to debug
+                    # 6. Hide/Show Flame based on Normalize
+                    if thrust_normalized < 0.01:
+                        flame.hide_render = True
+                        flame.keyframe_insert(data_path="hide_render", frame=frame)
+                    else:
+                        flame.hide_render = False
+                        flame.keyframe_insert(data_path="hide_render", frame=frame)
+
 
                     frame += 1
+                except (ValueError, IndexError):
+                    continue # Skip rows with parsing errors
 
-                except (ValueError, IndexError) as e:
-                    print(f"Error processing row {i+2}: {row}. Error: {e}. Skipping.")
-                    continue
+            # Set the last frame of the animation
+            if bpy.context.scene:
+                bpy.context.scene.frame_end = frame -1
 
-            if frame > 1:
-                bpy.context.scene.frame_end = frame - 1
-            print(f"Animation complete. Created {frame-1} frames.")
-
-except FileNotFoundError:
-    print(f"Error: CSV file not found at '{csv_file_path}'")
+except FileNotFoundError as e:
+    print(f"Error: File not found: {e}")
 except Exception as e:
-    print(f"An unexpected error occurred: {e}")
+    print(f"An error occurred: {e}")

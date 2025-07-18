@@ -2,9 +2,26 @@
 STEVE_Simulator/Simulator_Core/output_data/pitch_rate_sweep_results.mat
 STEVE_Simulator/Simulator_Core/output_data/tilt_pitch_rate_sweep_results.mat
 
+# Ignore MATLAB simulation output files
+*.mat
+
 # Ignore Python virtual environments
 venv/
 STEVE_Simulator/rocket_env/
 
 # Ignore Blender temporary/cache files
 STEVE_Simulator/Visualization/Blender/*.blend1
+
+# Ignore Blender files
+*.blend
+*.blend1
+
+# Ignore generated media
+/Visualization/Generated_Media/
+
+# Ignore slprj folder
+slprj/
+
+# Ignore autosave files
+*.asv
+*.autosave
