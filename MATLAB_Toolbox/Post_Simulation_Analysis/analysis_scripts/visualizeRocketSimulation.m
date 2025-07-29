@@ -11,11 +11,11 @@ clear; clc; close all;
 % Get the project root directory and add required paths
 scriptPath = mfilename('fullpath');
 [scriptDir, ~, ~] = fileparts(scriptPath);
-projectRoot = fullfile(fileparts(fileparts(scriptDir)));
+projectRoot = fileparts(fileparts(scriptDir)); % Two levels up from script
 
-% Add required paths
-addpath(fullfile(projectRoot, 'src', 'scripts'));
-addpath(fullfile(projectRoot, 'src', 'models'));
+% Add required paths (relative to project root)
+addpath(fullfile(projectRoot, 'Simulator_Core'));
+addpath(fullfile(projectRoot, 'MATLAB_Toolbox'));
 
 % Initialize parameters and design control system
 disp('Initializing parameters...');
@@ -25,7 +25,7 @@ ControlSystemDesign;
 
 % Load and run the Simulink model using full path
 mdl = "STEVE_Simulation";
-modelPath = fullfile(projectRoot, 'src', 'models', 'STEVE_Simulation.slx');
+modelPath = fullfile(projectRoot, 'Simulator_Core', 'STEVE_Simulation.slx');
 if ~exist(modelPath, 'file')
     error('Cannot find Simulink model at: %s', modelPath);
 end
@@ -335,8 +335,8 @@ trajectory_table = array2table(trajectory_data, ...
                      'nozzle_angle_rad'});
 
 % Write to CSV
-writetable(trajectory_table, '../../../data/results/rocket_trajectory_100fps.csv');
-fprintf('\nExported trajectory data to data/results/rocket_trajectory_100fps.csv\n');
+writetable(trajectory_table, fullfile(projectRoot, 'Simulator_Core', 'output_data', 'trajectory_for_blender_100fps.csv'));
+fprintf('\nExported trajectory data to Simulator_Core/output_data/trajectory_for_blender_100fps.csv\n');
 
 % --- END: Updated Data Export Section ---
 

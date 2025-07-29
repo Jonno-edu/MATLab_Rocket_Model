@@ -1,9 +1,13 @@
 % --- Script to Combine, Interpolate (Natural Method), Plot (Gradient), and Export ---
+
 clear; clc; close all;
 
 %% Setup
 fprintf('Loading raw aerodynamic data...\n');
-excelFilePath = '/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/MATLAB_Toolbox/Aero_Data_Processing/raw_data_input/STeVe V1 No Fins.xlsx';
+% Use relative path from script location
+scriptPath = mfilename('fullpath');
+[scriptDir,~,~] = fileparts(scriptPath);
+excelFilePath = fullfile(scriptDir, '../raw_data_input/STeVe V1 No Fins.xlsx');
 
 % Import options for "Aero Properties" (0-4 deg)
 optsS2 = spreadsheetImportOptions("NumVariables", 15);
@@ -146,7 +150,7 @@ for i = 1:length(finalCoeffNames)
      CombinedAeroData.Tables.(coeff) = interpolatedTables.(coeff);
 end
 
-targetFolder = '/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/MATLAB_Toolbox/Aero_Data_Processing/generated_aero_data';
+targetFolder = fullfile(scriptDir, '../generated_aero_data');
 outputFileName = fullfile(targetFolder, 'CombinedAeroData_Grid_Symmetric_Corrected.mat');
 save(outputFileName, 'CombinedAeroData');
 fprintf('Data saved successfully to %s.\n', outputFileName);

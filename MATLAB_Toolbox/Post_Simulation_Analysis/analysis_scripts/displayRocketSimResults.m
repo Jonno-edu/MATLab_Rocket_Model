@@ -6,7 +6,10 @@
 clear; clc; close all;
 
 % Prompt user to select results file if not specified
-dataPath = '../../data/results/RocketSimData.mat';
+% Use relative path from script location
+scriptPath = mfilename('fullpath');
+[scriptDir,~,~] = fileparts(scriptPath);
+dataPath = fullfile(scriptDir, '../../Simulator_Core/output_data/RocketSimData.mat');
 if ~exist(dataPath, 'file')
     [file, path] = uigetfile('*.mat', 'Select Rocket Simulation Results File');
     if file == 0
