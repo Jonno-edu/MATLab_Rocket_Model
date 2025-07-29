@@ -18,6 +18,7 @@ cp_name = "CP_Empty"
 nozzle_name = "Nozzle"
 trajectory_name = "RocketTrajectory"
 flame_name = "Rocket Flame Diamond Shock"
+camera_name = "Camera"
 arrow_names = {
     "Gravity": "Arrow_Gravity",
     "Drag": "Arrow_AeroDrag",
@@ -28,10 +29,11 @@ CREATE_TRAJECTORY_CURVE = True
 TRAJECTORY_COLOR = (1.0, 1.0, 0.0, 1.0)
 TRAJECTORY_THICKNESS = 0.05
 ROCKET_LENGTH_M = 9.5418
-nozzle_angle_multiplier = 5
+nozzle_angle_multiplier = 1
 flame_scale_multiplier = 0.15345
-aero_arrow_scale_multiplier = 5  # Scale factor for aero arrows
+aero_arrow_scale_multiplier = 1  # Scale factor for aero arrows
 ARROW_FORCE_LENGTH = 5  # Max visual arrow length in meters
+CAMERA_OFFSET = Vector((0, 60, 8))
 # --- END USER SETTINGS ---
 
 # Get Blender objects
@@ -41,6 +43,7 @@ try:
     cp = bpy.data.objects[cp_name]
     nozzle = bpy.data.objects[nozzle_name]
     flame = bpy.data.objects[flame_name]
+    camera = bpy.data.objects.get(camera_name)
 except KeyError as e:
     print(f"Error: Object '{e}' not found. Check names in Blender.")
     raise
@@ -53,7 +56,7 @@ def clear_animation(obj):
         obj.animation_data_clear()
 
 # Clear animation data for animated objects
-for obj in [rocket, cg, nozzle, flame, cp] + list(arrow_objs.values()):
+for obj in [rocket, cg, nozzle, flame, cp, camera] + list(arrow_objs.values()):
     clear_animation(obj)
 
 def create_trajectory_curve(points, name="RocketTrajectory"):
@@ -133,17 +136,18 @@ for i in range(frame_count):
     Fg_x = data['Fg_x_N'][i]
     Fg_z = data['Fg_z_N'][i]
     forces["Gravity"].append(math.sqrt(Fg_x**2 + Fg_z**2))
-    forces["Drag"].append(abs(data.get('Drag_N', [0]*frame_count)[i]))
-    forces["Lift"].append(abs(data.get('Lift_N', [0]*frame_count)[i]))
+    forces["Drag"].append(data.get('Drag_N', [0]*frame_count)[i])
+    forces["Lift"].append(data.get('Lift_N', [0]*frame_count)[i])
     if 'thrust_N' in data:
         forces["Thrust"].append(abs(data['thrust_N'][i]))
     else:
         forces["Thrust"].append(abs(data.get('thrust_normalized', [0]*frame_count)[i]))
 
 # --- UNIVERSAL normalization: Use thrust max as force_max for all arrows ---
-force_max = max(forces["Thrust"]) or 1.0
+force_max = max(forces["Thrust"]) if forces["Thrust"] else 1.0
 
 print(f"Animation: All arrows normalized to the maximum thrust = {force_max:.2f} (physical units).")
+last_print_time = -1.0  # Initialize to ensure the first print happens at t=0
 for i in range(frame_count):
     sim_pos_x = data['pos_x_m'][i]
     sim_pos_y = data['pos_y_m'][i]
@@ -194,7 +198,14 @@ for i in range(frame_count):
     flame.keyframe_insert(data_path="hide_render", frame=frame)
 
     # 6. CP Location RELATIVE TO CG (X-up body axis, with CORRECT sign)
-    cg_to_cp = data['cg_body_x_m'][i] - data['cp_from_nose_m'][i]
+    cg_val = cg_from_nose_x
+    cp_val = data['cp_from_nose_m'][i]
+    cg_to_cp = cg_val - cp_val
+    # Print the values every 1 seconds of simulation time
+    time_s = data['time_s'][i]
+    if time_s >= last_print_time + 1.0:
+        print(f"Time: {time_s:.2f}s | cg ({cg_val:.4f}) - cp ({cp_val:.4f}) = offset ({cg_to_cp:.4f})")
+        last_print_time = time_s
     cp_offset_vec = Vector((
         cg_to_cp * math.cos(sim_pitch_rad),
         0.0,
@@ -211,11 +222,19 @@ for i in range(frame_count):
     # 7. ARROW SCALE: All arrows normalized to max thrust (universal)
     for force_type, arrow_obj in arrow_objs.items():
         if arrow_obj is not None:
-            scale_z = (forces[force_type][i] / force_max) * ARROW_FORCE_LENGTH if force_max > 0 else 0.0
+            force_value = forces[force_type][i]
+            scale_z = (force_value / force_max) * ARROW_FORCE_LENGTH if force_max > 0 else 0.0
+            
             if force_type in ["Drag", "Lift"]:
                 scale_z *= aero_arrow_scale_multiplier
+
             arrow_obj.scale = (1.0, 1.0, scale_z)
             arrow_obj.keyframe_insert(data_path="scale", frame=frame)
+
+    # 8. Camera Animation
+    if camera:
+        camera.location = cg.location + CAMERA_OFFSET
+        camera.keyframe_insert(data_path="location", frame=frame)
 
 # Set animation endpoint
 if bpy.context.scene:
