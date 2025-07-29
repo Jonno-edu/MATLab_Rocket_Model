@@ -26,3 +26,14 @@ slprj/
 # Ignore autosave files
 *.asv
 *.autosave
+
+
+*.mat
+*.asv
+slprj/
+*.slxc
+*.mexa64
+*.mexmaci64
+.MATLABDriveTag
+*.log
+venv/

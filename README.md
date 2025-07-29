@@ -2,37 +2,25 @@
 
 A comprehensive MATLAB-based rocket simulation environment for modeling, simulating, and visualizing rocket trajectories with multi-platform visualization capabilities.
 
-![STEVE Rocket](docs/images/steve.png)
 
 ## Project Structure
 
 The project is organized into the following folders:
 
 ```
-STEVE_Simulator/
-├── src/                          # Source code
-│   ├── models/                   # Main simulation models
-│   ├── scripts/                  # MATLAB scripts
-│   ├── visualization/            # Visualization scripts
-│   │   ├── matlab/               # MATLAB visualization
-│   │   ├── python/               # Python visualization
-│   │   └── blender_animation/    # Blender animation
-│   └── util/                     # Utility functions
-│
-├── data/                         # Data files
-│   ├── parameters/               # Configuration data
-│   ├── lookup/                   # Lookup tables
-│   ├── results/                  # Simulation results
-│   └── aero/                     # Aerodynamics data
-│
-├── docs/                         # Documentation
-│   └── images/                   # Documentation images
-│
-├── output/                       # Output files
-│   ├── animations/               # Generated animations
-│   └── kml/                      # Generated KML files
-│
-└── rocket_env/                   # Python environment
+.
+├── MATLAB_Toolbox/            # MATLAB toolbox functions and control utilities
+├── Simulator_Core/            # Main simulation models, parameters, and core scripts
+├── Visualization/             # All visualization scripts and assets
+│   ├── Blender/                   # Blender animation files and scripts
+│   ├── Generated_Media/           # Rendered animations, KML, etc.
+│   ├── Python/                    # Python-based 3D animation/visualization
+│   └── (etc.)
+├── docs/                      # Documentation and images
+│   └── images/
+├── README.md                  # This file
+├── .gitignore
+└── (other files/folders as the project evolves)
 ```
 
 ## Overview
@@ -44,83 +32,88 @@ The STEVE Rocket Model Simulation is a high-fidelity simulation framework design
 ### Physics-Based Simulation
 
 - **6DOF Flight Dynamics**: Complete 3D rigid body dynamics with time-varying mass properties
-- **Accurate Aerodynamics**: Mach and angle-of-attack dependent aerodynamic coefficients
+- **Accurate Aerodynamics**: Mach and angle-of-attack dependent aerodynamic coefficients (CFD-supported)
 - **Variable Mass Model**: Time-varying mass, center of gravity, and moments of inertia
 - **Thrust Vector Control**: Realistic nozzle actuation with rate limiting and dynamic response
 - **Wind Effects**: Configurable wind profiles including wind shear
 
-### Control System Design
+### Control Architecture
 
-- **Cascaded Control System**: Inner-loop rate control and outer-loop attitude control
-- **Adjustable Control Parameters**: Configurable gains for performance tuning
-- **Multiple Actuator Models**: Support for 1st and 2nd-order actuator dynamics
+#### Inner Loop Stability + Feedforward
+1. **Inner loop pitch rate controller (PD) for disturbance rejection + pitch rate tracking**
+   - Gain scheduled via:  
+     - Time: CG position, moment of inertia  
+     - Altitude: Thrust force
+2. **Aerodynamic moment feedforward controller**
+   - Estimates aerodynamic moment on the vehicle
+   - Estimated parameters:  
+     - Angle of attack  
+     - Airspeed  
+     - Center of Pressure (CP)  
+     - Aerodynamic pitching moment coefficient (CFD)  
+   - Adaptive feedforward (tunes weights by monitoring PD controller effort)
+3. **Mid loop pitch angle controller**
+4. **Outer loop trajectory tracking controllers**
 
 ### Comprehensive Analysis Tools
 
-- **Flight Metrics**: Detailed calculation of key performance parameters:
+- **Flight Metrics**: Detailed calculation of key performance indicators including:
   - Maximum altitude and speed
   - Burnout conditions (altitude, speed, time)
   - Maximum acceleration and angle of attack
   - Flight time and trajectory statistics
 
-- **Visualization Suite**: Multi-tabbed visualization interface for in-depth analysis:
-  - 3D and 2D trajectory plotting
-  - Velocity components (Earth-frame and Body-frame)
-  - Attitude and angular rates
+- **Visualization Suite**: In-depth 2D/3D analysis:
+  - Trajectory plotting
+  - Velocity components (Earth/Body frame)
+  - Attitude/angular rates
   - Force and moment analysis
-  - Wind effects visualization
+  - Wind visualization
 
 ### Multi-Platform Visualization
 
-- **MATLAB Plotting**: Comprehensive 2D plots for detailed data analysis
-- **Python 3D Animation**: Real-time trajectory visualization using PyVista and Qt
-- **Blender Integration**: High-quality 3D rendering using exported simulation data
-- **Google Earth Export**: KML trajectory export for geospatial visualization
+- **MATLAB Plotting**: 2D/3D data analysis tools
+- **Python 3D Animation**: Real-time visualization with PyVista and Qt
+- **Blender Integration**: High-quality 3D rendering of flight data
+- **Google Earth Export**: KML trajectory overlays for geospatial results
 
 ## Usage
 
 ### Basic Simulation
 
-1. Simply run `src/scripts/runRocketSimulation.m` to execute the complete simulation workflow:
-   - This script initializes parameters, configures the control system, runs the simulation model, visualizes results, and exports data for external visualization tools
-   
-   Alternatively, you can run each step individually:
-   - Run `src/scripts/initialize_parameters.m` to set up simulation parameters
-   - Run `src/scripts/ControlSystemDesign.m` to configure the control system
-   - Run `src/models/STEVE_Simulation.slx` to execute the simulation
+1. Run `Simulator_Core/run_simulation.m` in MATLAB to execute the complete simulation:
+   - Initializes parameters, configures control, runs model, visualizes results, exports for external platforms
+
+_Alternatively, run each step individually in the relevant scripts for advanced workflows._
 
 ### Extended Visualization
 
 #### 3D Animation with Python
 
-The simulation includes a Python-based real-time 3D animation system:
-
-1. Run `src/visualization/matlab/visualizeRocketSimulation.m` to generate trajectory data
-2. Execute `src/visualization/python/rocketpy_animation.py` to view the 3D animation
+1. Run `Visualization/visualizeRocketSimulation.m` in MATLAB to generate data
+2. Run `Visualization/Python/rocketpy_animation.py` for 3D animation
 
 #### Blender Animation
 
-For high-quality rendering:
-
 1. Install Blender (https://www.blender.org/)
-2. Open the Blender file `src/visualization/blender_animation/RocketAnimation.blend`
-3. Run the `src/visualization/blender_animation/blender_animation.py` script within Blender
+2. Open `Visualization/Blender/RocketAnimation.blend`
+3. Run `blender_animation.py` inside Blender
 
 #### Google Earth Visualization
 
-1. Run `src/visualization/python/create_rocket_kml.py` to convert trajectory data to KML format
-2. Open the generated `output/kml/rocket_trajectory_static.kml` file in Google Earth
+1. Run `Visualization/Python/create_rocket_kml.py` to convert trajectory data to KML
+2. Open `Visualization/Generated_Media/rocket_trajectory_static.kml` in Google Earth
 
 ## Requirements
 
 ### MATLAB Requirements
-- MATLAB R2020b or newer
+- **MATLAB R2025a** or newer
 - Simulink
 - Control System Toolbox
 
 ### Python Requirements
 - Python 3.8+
-- PyVista and PyVistaQt
+- PyVista, PyVistaQt
 - NumPy, Pandas
 - PyQt5 or PyQt6
 
