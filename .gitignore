@@ -37,3 +37,6 @@ slprj/
 .MATLABDriveTag
 *.log
 venv/
+
+Simulator_Core/output_data/trajectory_for_blender_60fps.csv
+.vscode/settings.json
