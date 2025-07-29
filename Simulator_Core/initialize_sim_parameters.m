@@ -5,12 +5,15 @@ function sim_params = initialize_sim_parameters()
 
 fprintf('--- Initializing Simulation Parameters ---\n');
 
+steve_varient = 2; % 1 = Light, 2 = Heavy
+
 % Define project root assuming this script is in Simulator_Core
 projectRoot = fileparts(fileparts(mfilename('fullpath'))); % Goes up two levels from Simulator_Core
 
 
 %% File Paths (relative to projectRoot)
 % Input data for the simulator core
+
 heavySteveDataFilePath      = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'Heavy_STeVe_Data.xlsx');
 contourFilePath       = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'rocket_geometry.xlsx');
 aeroMatFilePath       = fullfile(projectRoot, 'Simulator_Core', 'input_data', 'CombinedAeroData_Grid_Symmetric_Corrected.mat');
@@ -30,7 +33,21 @@ if exist(heavySteveDataFilePath, 'file')
     dynamicRange = "A2:F" + endRow;
     
     % Set up import options to read all columns, including the original time
-    opts = detectImportOptions(heavySteveDataFilePath, "Sheet", "Mass Properties Heavy");
+    if (steve_varient == 1)
+        fprintf("Light Varient\n")
+        Sim.Time = readmatrix(heavySteveDataFilePath, 'Sheet', "Derived Properties", 'Range', "B3:B3");
+        %Sim.Time = 37;
+        Actuators.Engine.BurnTime = readmatrix(heavySteveDataFilePath, 'Sheet', "Derived Properties", 'Range', "S3:S3");
+        opts = detectImportOptions(heavySteveDataFilePath, "Sheet", "Mass Properties");
+
+    else
+        fprintf("Heavy Varient\n")
+        Sim.Time = readmatrix(heavySteveDataFilePath, 'Sheet', "Derived Properties", 'Range', "B4:B4");
+        
+        Actuators.Engine.BurnTime = readmatrix(heavySteveDataFilePath, 'Sheet', "Derived Properties", 'Range', "S4:S4");
+        opts = detectImportOptions(heavySteveDataFilePath, "Sheet", "Mass Properties Heavy");
+
+    end
     opts.DataRange = dynamicRange;
     opts.VariableNames = ["Time", "Mass", "COM_Z", "MOIx_Z", "MOIy_Z", "MOIz_Z"];
     
@@ -52,7 +69,6 @@ end
 
 %% System Parameters
 Sim.Timestep = 0.0001;
-Sim.Time = 140;
 sim_params.Sim = Sim;
 
 Initial.Conditions.theta0 = deg2rad(90);         % Initial pitch [deg]
@@ -90,7 +106,6 @@ end
 
 sim_params.Initial = Initial;
 
-Actuators.Engine.BurnTime = readmatrix(heavySteveDataFilePath, 'Sheet', "Derived Properties", 'Range', "S4:S4");
 Actuators.Nozzle.MaxDeflection = deg2rad(8);     % maxdef_nozzle [rad]
 Actuators.Nozzle.RateLimit = deg2rad(150);       % rate_lim_nozzle [rad/s]
 Actuators.Engine.MaxThrust = (27.6*10^3)*1;      % max_thrust [N]
