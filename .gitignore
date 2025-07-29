@@ -4,6 +4,7 @@ STEVE_Simulator/Simulator_Core/output_data/tilt_pitch_rate_sweep_results.mat
 
 # Ignore MATLAB simulation output files
 *.mat
+**/*.mat
 
 # Ignore Python virtual environments
 venv/
