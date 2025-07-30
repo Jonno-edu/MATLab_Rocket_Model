@@ -136,8 +136,8 @@ for i in range(frame_count):
     Fg_x = data['Fg_x_N'][i]
     Fg_z = data['Fg_z_N'][i]
     forces["Gravity"].append(math.sqrt(Fg_x**2 + Fg_z**2))
-    forces["Drag"].append(data.get('Drag_N', [0]*frame_count)[i])
-    forces["Lift"].append(data.get('Lift_N', [0]*frame_count)[i])
+    forces["Drag"].append(data.get('AxialForceAero_N', [0]*frame_count)[i])
+    forces["Lift"].append(data.get('NormalForceAero_N', [0]*frame_count)[i])
     if 'thrust_N' in data:
         forces["Thrust"].append(abs(data['thrust_N'][i]))
     else:
@@ -226,7 +226,7 @@ for i in range(frame_count):
             scale_z = (force_value / force_max) * ARROW_FORCE_LENGTH if force_max > 0 else 0.0
             
             if force_type in ["Drag", "Lift"]:
-                scale_z *= aero_arrow_scale_multiplier
+                scale_z *= -aero_arrow_scale_multiplier
 
             arrow_obj.scale = (1.0, 1.0, scale_z)
             arrow_obj.keyframe_insert(data_path="scale", frame=frame)
