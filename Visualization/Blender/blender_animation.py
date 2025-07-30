@@ -11,7 +11,7 @@ warnings.filterwarnings("ignore", message=".*'bgl' imported without an OpenGL ba
 blend_file_directory = os.path.dirname(bpy.data.filepath)
 
 # --- USER SETTINGS ---
-csv_file_path = "/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/Simulator_Core/output_data/trajectory_for_blender_60fps.csv"
+csv_file_path = os.path.join(os.path.dirname(__file__), '../../Simulator_Core/output_data/trajectory_for_blender_60fps.csv')
 rocket_name = "RocketBody"
 cg_name = "CG_Empty"
 cp_name = "CP_Empty"
