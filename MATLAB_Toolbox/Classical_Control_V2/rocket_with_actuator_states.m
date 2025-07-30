@@ -1,23 +1,76 @@
-% Parameters (update as needed)
-omega_n = 62;          % natural frequency (rad/s)
-zeta = 0.505;            % damping ratio
+clc
+clear
+close all
 
-T = 27607;        % Newtons (example)
-l_CG = 5.55;       % meters (example)
-I_y = 21553;      % kg*m^2 (example)
+%%--- Parameters ---
+T = 27607;        % Thrust (N)
+l_CG = 5.55;      % Nozzle to CG distance (m)
+I_y = 21553;      % Pitch moment of inertia (kg*m^2)
+omega_n = 62;     % Actuator natural frequency (rad/s)
+zeta = 0.505;     % Actuator damping ratio
+V = 1000;          % Forward velocity for lateral plant (m/s)
 
-% Actuator transfer function
+%%--- Plant: Pitch Rate (no actuator) ---
+k_plant = T * l_CG / I_y;
+pitch_rate_plant = tf([k_plant], [1 0]);
+
+%%--- Actuator Model (2nd Order) ---
 num_act = [omega_n^2];
 den_act = [1 2*zeta*omega_n omega_n^2];
+actuator = tf(num_act, den_act);
 
-% Plant transfer function (pitch rate output)
-k_plant = T * l_CG / I_y;
-num_plant = [k_plant];
-den_plant = [1 0];    % Integrator
+%%--- Combined Plant: Actuator + Pitch Rate ---
+plant_inner = series(actuator, pitch_rate_plant);
 
-% Series connection (full open loop system: command -> pitch rate)
-num_total = conv(num_act, num_plant);
-den_total = conv(den_act, den_plant);
+%%--- Inner PID Design (Pitch Rate Loop) ---
+bw_inner = 22.22;
+opts_inner = pidtuneOptions('PhaseMargin',60,'DesignFocus','disturbance-rejection');
+[C_inner,info_inner] = pidtune(plant_inner,'pid',bw_inner,opts_inner);
 
-sys_total = tf(num_total, den_total)
+%%--- Closed Inner Loop ---
+sys_inner_cl = feedback(series(C_inner,plant_inner),1);
 
+%%--- Pitch Angle Plant for Outer Loop ---
+plant_outer = series(sys_inner_cl, tf(1,[1 0]));
+
+%%--- Outer PID Design (Pitch Angle Loop) ---
+bw_outer = 2.2;
+opts_outer = pidtuneOptions('PhaseMargin',60,'DesignFocus','disturbance-rejection');
+[C_outer,info_outer] = pidtune(plant_outer,'pi',bw_outer,opts_outer);
+
+%%--- Closed Outer Loop (Pitch Angle) ---
+sys_outer_cl = feedback(series(C_outer,plant_outer),1);
+
+%%--- Normal Velocity Plant (Lateral) ---
+normal_velocity_plant = sys_outer_cl * V;
+
+%%--- Normal Velocity Controller (Outer, Lateral Velocity) ---
+bw_vel = bw_outer/5;
+opts_vel = pidtuneOptions('PhaseMargin',60,'DesignFocus','disturbance-rejection');
+[C_vel,info_vel] = pidtune(normal_velocity_plant,'pi',bw_vel,opts_vel);
+sys_normal_vel_cl = feedback(series(C_vel, normal_velocity_plant), 1);
+
+%%--- Normal Position Plant ---
+normal_position_plant = series(sys_normal_vel_cl, tf(1,[1 0]));
+
+%%--- Normal Position Controller (Outer, Lateral Position) ---
+bw_pos = bw_vel/4; % Position loop much slower for robustness
+opts_pos = pidtuneOptions('PhaseMargin',60,'DesignFocus','disturbance-rejection');
+[C_pos,info_pos] = pidtune(normal_position_plant,'pi',bw_pos,opts_pos);
+sys_normal_pos_cl = feedback(series(C_pos, normal_position_plant), 1);
+
+%%--- Display Results ---
+disp('Inner PID Controller:');
+C_inner
+
+disp('Outer PID Controller (Pitch Angle):');
+C_outer
+
+disp('Velocity Loop Controller:');
+C_vel
+
+disp('Position Loop Controller:');
+C_pos
+
+disp('Normal Position Closed Loop (Final Plant):');
+sys_normal_pos_cl
