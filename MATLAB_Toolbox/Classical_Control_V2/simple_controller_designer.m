@@ -22,8 +22,25 @@ actuator = tf(num_act, den_act);
 %%--- Combined Plant: Actuator + Pitch Rate ---
 plant_inner = series(actuator, pitch_rate_plant);
 
+
+%--- Calculate Bode and -3dB Cutoff ---
+[mag,phase,wout] = bode(plant_inner, logspace(-1,2,1000)); % 0.1 to 100 rad/s
+mag_db = squeeze(20*log10(mag));
+
+% Find starting (DC/low freq) magnitude
+mag0 = mag_db(1)
+
+% Find frequency where magnitude drops -3dB
+idx = find(mag_db <= (mag0-3), 1, 'first');
+cutoff_freq = wout(idx)
+cutoff_freq = 5
+
+disp(['Cutoff frequency: ', num2str(cutoff_freq), ' rad/s'])
+
+
 %%--- Inner PID Design (Pitch Rate Loop) ---
-bw_inner = 22.22;
+%bw_inner = 22.22;
+bw_inner = 3 * cutoff_freq
 opts_inner = pidtuneOptions('PhaseMargin',60,'DesignFocus','disturbance-rejection');
 [C_inner,info_inner] = pidtune(plant_inner,'pid',bw_inner,opts_inner);
 
@@ -34,7 +51,7 @@ sys_inner_cl = feedback(series(C_inner,plant_inner),1);
 plant_outer = series(sys_inner_cl, tf(1,[1 0]));
 
 %%--- Outer PID Design (Pitch Angle Loop) ---
-bw_outer = 2.2;
+bw_outer = bw_inner / 5
 opts_outer = pidtuneOptions('PhaseMargin',60,'DesignFocus','disturbance-rejection');
 [C_outer,info_outer] = pidtune(plant_outer,'pi',bw_outer,opts_outer);
 
