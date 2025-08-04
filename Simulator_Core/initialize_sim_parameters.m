@@ -168,7 +168,9 @@ assignin('base', 'd_inertia_tensor', d_inertia_tensor);
 max_mass = new_Mass(1); % at t=0 (launch)
 initial_TWR = Actuators.Engine.MaxThrust / (max_mass * 9.81);
 fprintf('\n--- Max Launch Mass: %.2f kg', max_mass);
-fprintf('\n--- Thrust-to-Weight Ratio at Launch: %.3f\n', initial_TWR);
+fprintf('\n--- Thrust-to-Weight Ratio at Launch: %.3f', initial_TWR);
+fprintf('\n--- Min MOI: %.3f', min(new_MOIx_Z));
+fprintf('\n--- Max CG: %.3f\n', max(new_COM_Z))
 
 fprintf('\n--- Initialization Complete ---\n');
 end

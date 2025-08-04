@@ -12,8 +12,8 @@ close all
 %% --- 1. System Parameters & Constraints ---
 % Vehicle physical properties
 T = 27607;        % Thrust (N)
-l_CG = 5.549;     % Nozzle to CG distance (m)
-I_y = 21545.917;      % Pitch moment of inertia (kg*m^2)
+l_CG = 5.55;     % Nozzle to CG distance (m)
+I_y = 21546;      % Pitch moment of inertia (kg*m^2)
 
 % Actuator hardware model
 omega_act = 62;     % Actuator natural frequency (rad/s)
@@ -37,61 +37,36 @@ actuator = tf([omega_act^2], [1 2*zeta_act*omega_act omega_act^2]);
 plant_inner_open_loop = series(actuator, plant_with_aero);
 
 %% --- 3. Inner Loop (Pitch Rate) Controller Design ---
-% Design a fast PID controller with a derivative filter to stabilize the pitch rate.
-fprintf('--- Inner Loop (Pitch Rate) Design ---\n');
+% Design a fast PID controller to stabilize the pitch rate.
+fprintf('--- Inner Loop (Pitch Rate) Design ---\n'); %[output:3cc24c63]
 
 % Design Target: 1/3 of actuator bandwidth
-bw_inner = omega_act / 10;
-fprintf('Target Inner Loop Bandwidth: %.2f rad/s\n', bw_inner);
+bw_inner = omega_act / 3;
+fprintf('Target Inner Loop Bandwidth: %.2f rad/s\n', bw_inner); %[output:3fe6878a]
 
-% CORRECTED: Tune a PID controller WITH a derivative filter ('pidf')
+% Tune the PID controller
 opts_inner = pidtuneOptions('PhaseMargin', 60);
-[C_inner, ~] = pidtune(plant_inner_open_loop, 'pidf', bw_inner, opts_inner);
+[C_inner, info_inner] = pidtune(plant_inner_open_loop, 'pid', bw_inner, opts_inner); % Capture the info struct
 
 % Create the closed-loop inner system
 sys_inner_cl = feedback(series(C_inner, plant_inner_open_loop), 1);
 
-% CORRECTED: Calculate the filter coefficient N from the filter time constant Tf
-filter_coefficient_N = 1 / C_inner.Tf;
-
 % Display the controller gains and the CRITICAL filter coefficient
-disp('Tuned Inner Loop PID Controller (C_inner):');
-disp(C_inner);
-fprintf('CRITICAL ---> Derivative Filter Coefficient (N): %.2f\n', filter_coefficient_N);
-
-
+disp('Tuned Inner Loop PID Controller (C_inner):'); %[output:331fcf1d]
+disp(C_inner); %[output:153a3311]
+fprintf('CRITICAL ---> Derivative Filter Coefficient (N): %.2f\n', C_inner.N); %[output:51be2b41]
 
 %% --- 4. Outer Loop (Pitch Angle) Controller Design ---
+% (The rest of the script remains the same)
 fprintf('\n--- Outer Loop (Pitch Angle) Design ---\n');
 bw_outer = bw_inner / 3;
 fprintf('Target Outer Loop Bandwidth: %.2f rad/s\n', bw_outer);
 plant_outer_open_loop = series(sys_inner_cl, tf(1,[1 0]));
 opts_outer = pidtuneOptions('PhaseMargin', 60);
-[C_outer, ~] = pidtune(plant_outer_open_loop, 'pi', bw_outer, opts_outer);
+[C_outer, ~] = pidtune(plant_outer_open_loop, 'p', bw_outer, opts_outer);
 sys_outer_cl = minreal(feedback(series(C_outer, plant_outer_open_loop), 1));
 disp('Tuned Outer Loop P Controller (C_outer):');
 disp(C_outer);
-
-%% --- 3.5. Export Inner PID Controller Parameters to Workspace ---
-C_inner_Kp = C_inner.Kp;
-C_inner_Ki = C_inner.Ki;
-C_inner_Kd = C_inner.Kd;
-C_inner_Tf = C_inner.Tf;
-C_inner_N  = 1 / C_inner_Tf;
-assignin('base', 'C_inner_Kp', C_inner_Kp);
-assignin('base', 'C_inner_Ki', C_inner_Ki);
-assignin('base', 'C_inner_Kd', C_inner_Kd);
-assignin('base', 'C_inner_Tf', C_inner_Tf);
-assignin('base', 'C_inner_N',  C_inner_N);
-
-%% --- 4.5. Export Outer PI Controller Parameters to Workspace ---
-C_outer_Kp = C_outer.Kp;
-C_outer_Ki = C_outer.Ki;
-C_outer_Kd = C_outer.Kd;
-assignin('base', 'C_outer_Kp', C_outer_Kp);
-assignin('base', 'C_outer_Ki', C_outer_Ki);
-assignin('base', 'C_outer_Kd', C_outer_Kd);
-
 
 %% --- 5. Final Performance and Stability Verification ---
 fprintf('\n--- Final Autopilot Performance ---\n');
@@ -108,3 +83,25 @@ if all(real(poles_final_system) < 0)
 else
     fprintf('FAILURE: The final closed-loop system is UNSTABLE.\n');
 end
+
+
+%[appendix]{"version":"1.0"}
+%---
+%[metadata:view]
+%   data: {"layout":"inline","rightPanelPercent":45.8}
+%---
+%[output:3cc24c63]
+%   data: {"dataType":"text","outputData":{"text":"--- Inner Loop (Pitch Rate) Design ---\n","truncated":false}}
+%---
+%[output:3fe6878a]
+%   data: {"dataType":"text","outputData":{"text":"Target Inner Loop Bandwidth: 20.67 rad\/s\n","truncated":false}}
+%---
+%[output:331fcf1d]
+%   data: {"dataType":"text","outputData":{"text":"Tuned Inner Loop PID Controller (C_inner):\n","truncated":false}}
+%---
+%[output:153a3311]
+%   data: {"dataType":"text","outputData":{"text":"  <a href=\"matlab:helpPopup('pid')\" style=\"font-weight:bold\">pid<\/a> with properties:\n\n              Kp: 2.6207\n              Ki: 9.4277\n              Kd: 0.0646\n              Tf: 0\n        IFormula: ''\n        DFormula: ''\n      InputDelay: 0\n     OutputDelay: 0\n       InputName: {''}\n       InputUnit: {''}\n      InputGroup: [1×1 struct]\n      OutputName: {''}\n      OutputUnit: {''}\n     OutputGroup: [1×1 struct]\n           Notes: [0×1 string]\n        UserData: []\n            Name: ''\n              Ts: 0\n        TimeUnit: 'seconds'\n    SamplingGrid: [1×1 struct]\n\n","truncated":false}}
+%---
+%[output:51be2b41]
+%   data: {"dataType":"error","outputData":{"errorType":"runtime","text":"Ambiguous pid property: 'N'."}}
+%---

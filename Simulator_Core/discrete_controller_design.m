@@ -4,10 +4,7 @@
 % analyzing the inner (pitch rate) and outer (pitch angle) control loops.
 % This version includes extraction of the derivative filter coefficient (N).
 
-% Clear workspace and close all figures
-clc
-clear
-close all
+
 
 %% --- 1. System Parameters & Constraints ---
 % Vehicle physical properties
@@ -40,8 +37,8 @@ plant_inner_open_loop = series(actuator, plant_with_aero);
 % Design a fast PID controller with a derivative filter to stabilize the pitch rate.
 fprintf('--- Inner Loop (Pitch Rate) Design ---\n');
 
-% Design Target: 1/3 of actuator bandwidth
-bw_inner = omega_act / 10;
+% Design Target:of actuator bandwidth
+bw_inner = omega_act / 20;
 fprintf('Target Inner Loop Bandwidth: %.2f rad/s\n', bw_inner);
 
 % CORRECTED: Tune a PID controller WITH a derivative filter ('pidf')
@@ -72,6 +69,24 @@ sys_outer_cl = minreal(feedback(series(C_outer, plant_outer_open_loop), 1));
 disp('Tuned Outer Loop P Controller (C_outer):');
 disp(C_outer);
 
+
+
+fprintf('\n--- Definitive Stability Check ---\n');
+poles_final_system = pole(sys_outer_cl);
+if all(real(poles_final_system) < 0)
+    fprintf('SUCCESS: The final closed-loop system is STABLE.\n');
+else
+    fprintf('FAILURE: The final closed-loop system is UNSTABLE.\n');
+end
+
+
+Ts_inner = 1/200; % Sample time, in seconds
+Ts_outer = Ts_inner/5;
+
+C_inner_d = c2d(C_inner, Ts_inner, 'tustin') % Discrete inner PID
+C_outer_d = c2d(C_outer, Ts_outer, 'tustin') % Discrete outer PI
+
+
 %% --- 3.5. Export Inner PID Controller Parameters to Workspace ---
 C_inner_Kp = C_inner.Kp;
 C_inner_Ki = C_inner.Ki;
@@ -93,18 +108,27 @@ assignin('base', 'C_outer_Ki', C_outer_Ki);
 assignin('base', 'C_outer_Kd', C_outer_Kd);
 
 
-%% --- 5. Final Performance and Stability Verification ---
-fprintf('\n--- Final Autopilot Performance ---\n');
-figure;
-step(sys_outer_cl);
-grid on;
-title('Step Response of Full Autopilot (Pitch Angle Control)');
-stepinfo(sys_outer_cl)
+%% Discrete Controller Parameters to Workspace
+% Inner Pitch rate
+C_inner_Ts = Ts_inner;
+C_inner_d_Kp = C_inner_d.Kp;
+C_inner_d_Ki = C_inner_d.Ki;
+C_inner_d_Kd = C_inner_d.Kd;
+C_inner_d_Tf = C_inner_d.Tf;
+C_inner_d_N  = 1 / C_inner_Tf;
+assignin('base', 'C_inner_Ts', C_inner_Ts);
+assignin('base', 'C_inner_d_Kp', C_inner_d_Kp);
+assignin('base', 'C_inner_d_Ki', C_inner_d_Ki);
+assignin('base', 'C_inner_d_Kd', C_inner_d_Kd);
+assignin('base', 'C_inner_d_Tf', C_inner_d_Tf);
+assignin('base', 'C_inner_d_N',  C_inner_d_N);
 
-fprintf('\n--- Definitive Stability Check ---\n');
-poles_final_system = pole(sys_outer_cl);
-if all(real(poles_final_system) < 0)
-    fprintf('SUCCESS: The final closed-loop system is STABLE.\n');
-else
-    fprintf('FAILURE: The final closed-loop system is UNSTABLE.\n');
-end
+%Outer Pitch rate
+C_outer_Ts = Ts_outer;
+C_outer_d_Kp = C_outer_d.Kp;
+C_outer_d_Ki = C_outer_d.Ki;
+C_outer_d_Kd = C_outer_d.Kd;
+assignin('base', 'Ts_outer', Ts_outer);
+assignin('base', 'C_outer_d_Kp', C_outer_d_Kp);
+assignin('base', 'C_outer_d_Ki', C_outer_d_Ki);
+assignin('base', 'C_outer_d_Kd', C_outer_d_Kd);

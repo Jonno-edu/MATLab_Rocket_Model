@@ -12,6 +12,7 @@ disp('Initializing simulation parameters...');
 sim_params = initialize_sim_parameters();
 disp('Initialization of sim_params complete.');
 
+discrete_controller_design
 
 
 % Load Simulink model

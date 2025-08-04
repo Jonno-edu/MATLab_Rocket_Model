@@ -5,7 +5,8 @@ close all
 %%--- Parameters ---
 T = 27607;        % Thrust (N)
 l_CG = 5.55;      % Nozzle to CG distance (m)
-I_y = 21553;      % Pitch moment of inertia (kg*m^2)
+%I_y = 21553;      % Pitch moment of inertia (kg*m^2)
+I_y = 19150;      % Pitch moment of inertia (kg*m^2)
 omega_n = 62;     % Actuator natural frequency (rad/s)
 zeta = 0.505;     % Actuator damping ratio
 V = 1000;          % Forward velocity for lateral plant (m/s)
