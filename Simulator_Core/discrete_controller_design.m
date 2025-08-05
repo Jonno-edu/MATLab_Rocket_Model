@@ -1,16 +1,15 @@
-%% Chapter Almost: Rocket Pitch Control Design & Analysis
-% This script walks through the design of a cascaded pitch control system
-% for a finless TVC rocket, from defining the plant to tuning and
-% analyzing the inner (pitch rate) and outer (pitch angle) control loops.
-% This version includes extraction of the derivative filter coefficient (N).
+%% Rocket Pitch Control Design & Analysis
 
 
 
 %% --- 1. System Parameters & Constraints ---
 % Vehicle physical properties
 T = 27607;        % Thrust (N)
-l_CG = 5.549;     % Nozzle to CG distance (m)
-I_y = 21545.917;      % Pitch moment of inertia (kg*m^2)
+% l_CG = 5.549;     % Nozzle to CG distance (m)
+% I_y = 21545.917;  % Pitch moment of inertia (kg*m^2)
+
+l_CG = 5.422;     % Nozzle to CG distance (m)
+I_y = 21300;      % Pitch moment of inertia (kg*m^2)
 
 % Actuator hardware model
 omega_act = 62;     % Actuator natural frequency (rad/s)
@@ -80,6 +79,7 @@ else
 end
 
 
+%% Convert to Discrete Controllers
 Ts_inner = 1/200; % Sample time, in seconds
 Ts_outer = Ts_inner/5;
 

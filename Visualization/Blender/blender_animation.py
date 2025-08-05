@@ -203,7 +203,7 @@ for i in range(frame_count):
     cg_to_cp = cg_val - cp_val
     # Print the values every 1 seconds of simulation time
     time_s = data['time_s'][i]
-    if time_s >= last_print_time + 1.0:
+    if time_s >= last_print_time + 10.0:
         print(f"Time: {time_s:.2f}s | cg ({cg_val:.4f}) - cp ({cp_val:.4f}) = offset ({cg_to_cp:.4f})")
         last_print_time = time_s
     cp_offset_vec = Vector((
