@@ -19,7 +19,8 @@ zeta_act = 0.505;   % Actuator damping ratio
 % Define the open-loop dynamics of the rocket pitch rate.
 
 % Aerodynamic model
-pitching_moment_derivative = 5500; % Aerodynamic instability (Nm/rad)
+%pitching_moment_derivative = 5500; % Aerodynamic instability (Nm/rad)
+pitching_moment_derivative = 0;
 aero_gain = pitching_moment_derivative / I_y;
 
 % Control authority
@@ -37,7 +38,7 @@ plant_inner_open_loop = series(actuator, plant_with_aero);
 fprintf('--- Inner Loop (Pitch Rate) Design ---\n');
 
 % Design Target:of actuator bandwidth
-bw_inner = omega_act / 20;
+bw_inner = omega_act / 15;
 fprintf('Target Inner Loop Bandwidth: %.2f rad/s\n', bw_inner);
 
 % CORRECTED: Tune a PID controller WITH a derivative filter ('pidf')
