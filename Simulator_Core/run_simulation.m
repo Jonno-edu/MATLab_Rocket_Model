@@ -22,7 +22,7 @@ load_system(modelName);
 disp('Simulink model loaded.');
 
 % Set simulation time
-simTime = 300;
+simTime = 70;
 disp(['Simulation stop time set to: ', num2str(simTime), ' seconds.']);
 
 % Run simulation
