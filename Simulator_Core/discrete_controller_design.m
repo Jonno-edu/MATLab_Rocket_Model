@@ -47,7 +47,7 @@ bw_outer_maxQ   = bw_inner_maxQ   / 5;
 % Sample rates, 10x bandwidth, rad/s to Hz conversion
 % Ts_inner = 1 / (10 * (bw_inner_maxQ/(2*pi))); % inner loop (always use fastest)
 % Ts_outer = 1 / (10 * (bw_outer_maxQ/(2*pi))); % outer loop (always use fastest)
-Ts_inner = 1/20;
+Ts_inner = 1/200;
 Ts_outer = Ts_inner*5;
 
 wn_ramp = 0.2;
@@ -122,3 +122,22 @@ C_outer_maxQ_d_Kd = C_outer_maxQ_d.Kd;
 assignin('base', 'C_outer_maxQ_d_Kp', C_outer_maxQ_d_Kp);
 assignin('base', 'C_outer_maxQ_d_Ki', C_outer_maxQ_d_Ki);
 assignin('base', 'C_outer_maxQ_d_Kd', C_outer_maxQ_d_Kd);
+
+%% Sensor Modelling
+
+% Multi-rate gyro filter design
+fs_gyro = 800;        % Gyro sensor rate
+fs_filter = 400;       % Filter processing rate  
+fs_control = 200;      % Control loop rate
+
+% Design filter at filter processing rate
+fc_gyro = 20;          % Cutoff frequency (Hz)
+wc = fc_gyro * 2 * pi; % Convert to rad/s
+[b, a] = butter(2, wc, 's');
+[b_gyro_fast, a_gyro_fast] = bilinear(b, a, fs_filter);
+
+% Export coefficients
+assignin('base', 'b_gyro_fast', b_gyro_fast);
+assignin('base', 'a_gyro_fast', a_gyro_fast);
+assignin('base', 'Ts_gyro_filter', 1/fs_filter);
+
