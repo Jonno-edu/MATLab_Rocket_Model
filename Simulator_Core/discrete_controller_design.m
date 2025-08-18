@@ -12,7 +12,7 @@ zeta_act = 0.505; % Actuator damping ratio
 %% --- 2. Plant Definition ---
 % Aero derivatives at operating points
 max_q_expected = 78000;
-max_q_margin = max_q_expected * 2;
+max_q_margin = max_q_expected * 1.2;
 qbar_aero_slope = 1.6831;
 
 pitching_moment_derivative_maxQ = max_q_margin * qbar_aero_slope; % At max Q
@@ -40,7 +40,7 @@ plant_inner_open_loop_maxQ   = series(actuator, plant_maxQ);
 
 %% --- 3. Bandwidths and Sampling Times ---
 bw_inner_launch = 0.5;
-bw_inner_maxQ   = 9;
+bw_inner_maxQ   = 6;
 bw_outer_launch = bw_inner_launch / 5;
 bw_outer_maxQ   = bw_inner_maxQ   / 5;
 
@@ -54,7 +54,7 @@ wn_ramp = 0.2;
 
 
 %% --- 4. Inner Loop Controllers ---
-opts_inner = pidtuneOptions('PhaseMargin', 60);
+opts_inner = pidtuneOptions('PhaseMargin', 70);
 [C_inner_launch, ~] = pidtune(plant_inner_open_loop_launch, 'pi', bw_inner_launch, opts_inner);
 [C_inner_maxQ,   ~] = pidtune(plant_inner_open_loop_maxQ,   'pi', bw_inner_maxQ,   opts_inner);
 
@@ -140,4 +140,9 @@ wc = fc_gyro * 2 * pi; % Convert to rad/s
 assignin('base', 'b_gyro_fast', b_gyro_fast);
 assignin('base', 'a_gyro_fast', a_gyro_fast);
 assignin('base', 'Ts_gyro_filter', 1/fs_filter);
+
+
+%% Sensor Filtering
+
+a_cf_ang = 0.98;
 
