@@ -11,18 +11,43 @@ parse3 = @(ts) parse(ts.Data, 3);                       % parse 3-col timeseries
 buildTT = @(t, X, names) timetable(seconds(t), X(:,1), X(:,2), X(:,3), ...
                                    'VariableNames', names);
 
+
+% 1. Squeeze your data to get a 3xN matrix
+g_B_perfect_squeezed = squeeze(Sim.g_B_meas.Data);
+
+% 2. Define the original and target number of points
+original_len = size(g_B_perfect_squeezed, 2); % Should be 300001
+target_len = 60001; % The desired length of your gyro data
+
+% 3. Create the original and target 'x' coordinates for interpolation
+%    These are just normalized indices from 1 to N
+x_original = linspace(1, original_len, original_len);
+x_target = linspace(1, original_len, target_len);
+
+% 4. Interpolate each of the three axes (rows) to the new length
+g_B_perfect_resampled = interp1(x_original, g_B_perfect_squeezed', x_target)';
+
+% 5. Verify the new size
+disp('Original size:');
+disp(size(g_B_perfect_squeezed));
+disp('Resampled size:');
+disp(size(g_B_perfect_resampled));
+
 % === Sensor signals (native rates) ===
 t_gps  = Sim.gps_Xe.Time;    X_gps  = parse3(Sim.gps_Xe);     % N,E,D (m)
 t_gv   = Sim.gps_Ve.Time;    V_gps  = parse3(Sim.gps_Ve);     % V_N,V_E,V_D (m/s)
 t_acc  = Sim.accel.Time;     A_body = parse3(Sim.accel);      % aX,aY,aZ (m/s^2)
 t_gyro = Sim.gyro.Time;      G_body = parse3(Sim.gyro);       % p,q,r (rad/s)
 t_mag  = Sim.mag.Time;       M_body = parse3(Sim.mag);        % mX,mY,mZ (µT)
+t_B_perf = Sim.g_B_meas.Time; G_perf = parse3(Sim.g_B_meas);
+
 
 TT_gps_Xe = buildTT(t_gps,  X_gps,  {'N','E','D'});
 TT_gps_Ve = buildTT(t_gv,   V_gps,  {'V_N','V_E','V_D'});
 TT_accel  = buildTT(t_acc,  A_body, {'aX','aY','aZ'});
 TT_gyro   = buildTT(t_gyro, G_body, {'p','q','r'});
 TT_mag    = buildTT(t_mag,  M_body, {'mX_uT','mY_uT','mZ_uT'});
+TT_B_perf = buildTT(t_B_perf, G_perf, {'GX_perf', 'GY_perf', 'GZ_perf'});
 
 % === Define IMU timeline (use accel timebase) ===
 t0      = TT_accel.Time(1);
@@ -74,6 +99,7 @@ for k = 1:numel(gps_t_s)
         V_N_mps(idx) = TT_gps_Ve.V_N(k);
         V_E_mps(idx) = TT_gps_Ve.V_E(k);
         V_D_mps(idx) = TT_gps_Ve.V_D(k);
+        
         iTOW_ms(idx) = round(seconds(TT_gps_Xe.Time(k) - TT_gps_Xe.Time(1)) * 1000);
     end
 end
@@ -86,6 +112,7 @@ for k = 1:numel(mag_t_s)
         mX_uT(idx) = TT_mag.mX_uT(k);
         mY_uT(idx) = TT_mag.mY_uT(k);
         mZ_uT(idx) = TT_mag.mZ_uT(k);
+        
     end
 end
 
