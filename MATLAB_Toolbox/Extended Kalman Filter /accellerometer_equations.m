@@ -28,3 +28,4 @@ aD_Fs = (-fz + g*cos(theta))*cos(theta) - (-fx - g*sin(theta))*sin(theta)
 
 aN_Fs = (-fx)*cos(theta) + (-fz)*sin(theta)
 aD_Fs = (-fz)*cos(theta) - (-fx)*sin(theta) + g
+
