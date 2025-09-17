@@ -55,7 +55,7 @@ target_include_directories(test_HIL PRIVATE
 
 # Add any user requested libraries
 target_link_libraries(test_HIL 
-        
+        pico_cyw43_arch_none
         )
 
 pico_add_extra_outputs(test_HIL)
