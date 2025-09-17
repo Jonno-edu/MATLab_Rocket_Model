@@ -3,6 +3,8 @@ clc; clear; close all;
 
 %% Run Simulink if needed
 if ~exist('Sim', 'var') || isempty(Sim)
+    dt_gps = 1/1;
+    dt_ekf = 1/1000;
     Sim = sim("simulate_sensors.slx");
 end
 
@@ -35,7 +37,13 @@ gyro_data  = squeeze(Sim.gyro.Data)';
 pw_meas = gyro_data(:,1);
 qw_meas = gyro_data(:,2);
 rw_meas = gyro_data(:,3);
-gps_pos_data    = squeeze(Sim.gps_Xe.Data);
+
+mag_data = squeeze(Sim.mag.Data)';
+mag_x_meas = mag_data(:, 1);
+mag_y_meas = mag_data(:, 2);
+mag_z_meas = mag_data(:, 3);
+
+gps_pos_data    = squeeze(Sim.gps_Xe.Data)';
 gps_pos_n_data  = gps_pos_data(:, 1);
 gps_pos_e_data  = gps_pos_data(:, 2);
 gps_pos_d_data  = gps_pos_data(:, 3);
@@ -45,8 +53,8 @@ gps_vel_e_data  = gps_vel_data(:, 2);
 gps_vel_d_data  = gps_vel_data(:, 3);
 
 %% Noise settings
-gps_pos_noise_std = 2.5;
-gps_alt_noise_std = 3.0;
+gps_pos_noise_std = 2.5*1;
+gps_alt_noise_std = 3.0*1;
 gps_vel_noise_std = 0.1;
 sigma_a_proc  = 0.2;
 sigma_w_proc  = deg2rad(0.1);  % rad/s/sqrt(Hz)

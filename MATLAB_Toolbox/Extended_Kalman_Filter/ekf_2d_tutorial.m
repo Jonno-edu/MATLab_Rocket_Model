@@ -2,6 +2,8 @@
 clc; clear; close all;
 
 %% Run Simulink if needed
+ dt_gps = 1/5;
+ dt_ekf = 1/1000;
 if ~exist('Sim', 'var') || isempty(Sim)
     Sim = sim("simulate_sensors.slx");
 end
@@ -39,7 +41,7 @@ qw_meas = gyro_data(:,2);                % body pitch rate
 rw_meas = gyro_data(:,3);                % body yaw rate
 
 % GPS aligned to IMU rate with NaNs when absent
-gps_pos_data    = squeeze(Sim.gps_Xe.Data);    % [N E D]
+gps_pos_data    = squeeze(Sim.gps_Xe.Data)';    % [N E D]
 gps_pos_n_data  = gps_pos_data(:, 1);
 gps_pos_e_data  = gps_pos_data(:, 2);
 gps_pos_d_data  = gps_pos_data(:, 3);
