@@ -1,42 +1,68 @@
-# Ignore large simulation result files
-STEVE_Simulator/Simulator_Core/output_data/pitch_rate_sweep_results.mat
-STEVE_Simulator/Simulator_Core/output_data/tilt_pitch_rate_sweep_results.mat
+# ===================================================================
+# General Development and OS Files
+# ===================================================================
+# IDE and editor settings
+.vscode/
+.idea/
 
-# Ignore MATLAB simulation output files
-*.mat
-**/*.mat
+# OS-generated files
+.DS_Store
+Thumbs.db
 
-# Ignore Python virtual environments
+# ===================================================================
+# MATLAB & Simulink
+# ===================================================================
+# Simulink build artifacts and cache
+slprj/
+*.slxc
+
+# Compiled MEX files (platform-independent)
+*.mex*
+
+# MATLAB temporary and log files
+*.asv
+*.log
+*.autosave
+
+# MATLAB Drive metadata
+.MATLABDriveTag
+
+# ===================================================================
+# Python
+# ===================================================================
+# Virtual environments
 venv/
-STEVE_Simulator/rocket_env/
+**/rocket_env/
 
-# Ignore Blender temporary/cache files
-STEVE_Simulator/Visualization/Blender/*.blend1
+# Python cache
+__pycache__/
+
+# ===================================================================
+# C/C++ Build Artifacts
+# ===================================================================
+# Build output directory
+build/
+
+# Object files and executables
+*.o
+*.elf
+*.exe
+
+# ===================================================================
+# Project-Specific Data and Output
+# ===================================================================
+# Ignore ALL .mat files by default
+# Use 'git add -f path/to/your_data.mat' to force-add necessary input data
+*.mat
+
+# Ignore ALL .csv files by default
+# Use 'git add -f path/to/your_data.csv' to force-add necessary input data
+*.csv
 
 # Ignore Blender files
 *.blend
 *.blend1
 
-# Ignore generated media
+# Ignore generated media from visualization
 /Visualization/Generated_Media/
 
-# Ignore slprj folder
-slprj/
-
-# Ignore autosave files
-*.asv
-*.autosave
-
-
-*.mat
-*.asv
-slprj/
-*.slxc
-*.mexa64
-*.mexmaci64
-.MATLABDriveTag
-*.log
-venv/
-
-Simulator_Core/output_data/trajectory_for_blender_60fps.csv
-.vscode/settings.json
