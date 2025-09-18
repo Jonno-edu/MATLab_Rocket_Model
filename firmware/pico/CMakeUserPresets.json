@@ -1,0 +1,17 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "ninja-pico-w",
+      "generator": "Ninja",
+      "binaryDir": "build",
+      "cacheVariables": {
+        "PICO_SDK_PATH": "/Users/jonno/dev/pico-sdk",
+        "PICO_TOOLCHAIN_PATH": "/Applications/ArmGNUToolchain/14.3.rel1/arm-none-eabi"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "build", "configurePreset": "ninja-pico-w" }
+  ]
+}

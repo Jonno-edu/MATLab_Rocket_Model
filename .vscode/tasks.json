@@ -2,18 +2,43 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Pico: Clean, Build and Flash",
+      "type": "shell",
+      "command": "cd '${workspaceFolder}/firmware/pico' && rm -rf build && cmake --preset ninja-pico-w && cmake --build build && picotool load -f build/apps/HIL/pico_hil.uf2",
+      "group": {
+        "kind": "build"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": true
+      },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Pico: Clean, Build, Flash & Monitor",
+      "type": "shell",
+      "command": "cd '${workspaceFolder}/firmware/pico' && rm -rf build && cmake --preset ninja-pico-w && cmake --build build && picotool load -f build/apps/HIL/pico_hil.uf2 && sleep 2 && screen /dev/tty.usbmodem11401 115200",
+      "group": {
+        "kind": "build"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": true
+      },
+      "problemMatcher": ["$gcc"]
+    },
+    {
       "label": "Run Blender Animation Script",
       "type": "shell",
-        "command": "/Applications/Blender.app/Contents/MacOS/Blender",
+      "command": "/Applications/Blender.app/Contents/MacOS/Blender",
       "args": [
         "Visualization/Blender/RocketAnimation.blend",
         "-P",
         "Visualization/Blender/blender_animation.py"
       ],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
+      "group": "build",
       "presentation": {
         "echo": true,
         "reveal": "always",
@@ -22,5 +47,5 @@
       },
       "problemMatcher": []
     }
-  ],
+  ]
 }
