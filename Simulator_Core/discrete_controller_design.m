@@ -66,7 +66,7 @@ plant_outer_open_loop_launch = series(sys_inner_cl_launch, tf(1,[1 0]));
 plant_outer_open_loop_maxQ   = series(sys_inner_cl_maxQ,   tf(1,[1 0]));
 
 opts_outer = pidtuneOptions('PhaseMargin', 60);
-[C_outer_launch, ~] = pidtune(plant_outer_open_loop_launch, 'pidf', bw_outer_launch, opts_outer);
+[C_outer_launch, ~] = pidtune(plant_outer_open_loop_launch, 'pi', bw_outer_launch, opts_outer);
 [C_outer_maxQ,   ~] = pidtune(plant_outer_open_loop_maxQ,   'pi', bw_outer_maxQ,   opts_outer);
 
 sys_outer_cl_launch = feedback(series(C_outer_launch, plant_outer_open_loop_launch), 1);

@@ -18,7 +18,9 @@ int main() {
 
     while (1) {
         if (scanf("%lf", &received_value) == 1) {
-            led_state = true;
+
+            led_state = !led_state;
+            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
 
             error = received_value;
 
@@ -28,10 +30,7 @@ int main() {
 
             prev_error = error;
         }
-        else {
-            led_state = false;
-        }
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
+
 
     }
     return 0;
