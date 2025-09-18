@@ -12,7 +12,7 @@ unit_test = true;
 
 
 % Load simulation data
-filename = '/Users/jonno/MATLAB-Drive/Rocket-Model-Simulation/STEVE_Simulator/Simulator_Core/output_data/simOut_heavy_benchmark.mat'; % Ensure this file is in your MATLAB path
+filename = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'data', 'output', 'simOut_heavy_benchmark.mat'); % Updated for new structure
 try
     load(filename);
     fprintf('Successfully loaded flight data from %s.\n', filename);

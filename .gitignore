@@ -66,3 +66,12 @@ build/
 # Ignore generated media from visualization
 /Visualization/Generated_Media/
 
+# ===================================================================
+# MATLAB Project files and folders
+# ===================================================================
+*.prj
+.mproj/
+.project/
+.settings/
+.matlab/
+

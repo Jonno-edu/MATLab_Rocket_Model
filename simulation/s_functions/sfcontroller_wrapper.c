@@ -4,6 +4,7 @@
 #include "simstruc.h"
 #include "mex.h"
 #include <math.h>
+#include "../../src/controller/controller.h"
 
 /* Parameter indices */
 enum { P_TS = 0, NUM_PARAMS };

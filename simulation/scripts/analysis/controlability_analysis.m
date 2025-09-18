@@ -2,7 +2,7 @@
 clear; clc; close all;
 
 % --- USER INPUTS ---
-filename = 'simOut.mat'; 
+filename = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'data', 'output', 'simOut.mat'); 
 linearization_interval = 0.1; 
 t_start_analysis = 1.0; 
 max_alpha_for_trim_deg = 7;
