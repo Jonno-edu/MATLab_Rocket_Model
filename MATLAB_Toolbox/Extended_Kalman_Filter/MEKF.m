@@ -16,8 +16,8 @@ sig_a = 0.02;             % accel direction noise [unit]
 sig_m = 0.01;             % mag direction noise [unit]
 
 % Gyro bias: constant + random walk
-bg_const = deg2rad([0.30, -0.15, 0.20]);   % constant bias [rad/s]
-q_bg     = (deg2rad(0.005))^2;             % RW spectral density
+bg_const = deg2rad([0.05, 0.05, 0.05]);   % constant bias [rad/s]
+q_bg     = (deg2rad(0.02))^2;             % RW spectral density
 
 % Accel/mag bias random walks (direction model)
 q_ba = (0.0005)^2;
