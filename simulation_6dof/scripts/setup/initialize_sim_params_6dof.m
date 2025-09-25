@@ -1,16 +1,19 @@
-function sim_params = initialize_sim_parameters()
-% initialize_sim_parameters - Initializes all parameters for the STEVE rocket simulation.
+function sim_params = initialize_sim_params_6dof()
+% initialize_sim_params_6dof - Initializes all parameters for the STEVE rocket simulation (6DOF).
 % Self-contained, uses original variable names, allows a nose mass to be added.
 
-fprintf('--- Initializing Simulation Parameters (Self-Contained, with Optional Nose Mass) ---\n');
+fprintf('--- Initializing Simulation Parameters (6DOF, Self-Contained, with Optional Nose Mass) ---\n');
 
-% --- Project root (robust absolute path)
+% --- Project root (robust relative path)
 thisFile = mfilename('fullpath');
-repoRoot = fileparts(fileparts(fileparts(fileparts(thisFile))));
-aeroMatFilePath = fullfile(repoRoot, 'simulation', 'data', 'input', 'CombinedAeroData_Grid_Symmetric_Corrected.mat');
+scriptDir = fileparts(thisFile);
+repoRoot = fileparts(fileparts(fileparts(scriptDir))); % Go up to repo root
+
+aeroMatFilePath = fullfile(repoRoot, 'simulation_6dof', 'data', 'input', 'CombinedAeroData_Grid_Symmetric_Corrected.mat');
 
 % --- Core parameters
 burn_time = 60;
+warm_up_time = 60;
 timeStep = 0.005;
 Sim.Timestep = 0.0001;
 
@@ -32,6 +35,8 @@ Initial.Conditions.theta0 = deg2rad(90);
 Initial.Conditions.pitchRate = 0.0;
 
 Wind.shear = 0;
+
+launchpad_alt = 100; % [m]
 
 % --- Nose mass settings
 add_nose_mass = true;
@@ -133,7 +138,7 @@ ThrustLookupData.Tables.Thrust = single([27.6e3, 25.0e3]);
 RocketAero.Physical = RocketAeroPhysical;
 RocketAero.AeroData = AeroData;
 Ref_Area = RocketAeroPhysical.Reference_Area;
-sim_params.OutputDataPath = fullfile(repoRoot, 'simulation', 'data', 'output');
+sim_params.OutputDataPath = fullfile(repoRoot, 'simulation_6dof', 'data', 'output');
 sim_params.Sim = Sim;
 sim_params.Initial = Initial;
 sim_params.Actuators = Actuators;
@@ -148,6 +153,8 @@ sim_params.Ref_Area = Ref_Area;
 assignin('base', 'Sim', Sim);
 assignin('base', 'Initial', Initial);
 assignin('base', 'Actuators', Actuators);
+assignin('base', 'launchpad_alt', launchpad_alt);
+assignin('base', 'warm_up_time', warm_up_time);
 assignin('base', 'Wind', Wind);
 assignin('base', 'RocketAeroPhysical', RocketAeroPhysical);
 assignin('base', 'rocket_length', RocketAeroPhysical.Length);
