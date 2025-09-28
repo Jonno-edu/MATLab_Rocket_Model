@@ -10,12 +10,14 @@ The project is organized into the following folders:
 ```
 .
 ├── MATLAB_Toolbox/            # MATLAB toolbox functions and control utilities
-├── Simulator_Core/            # Main simulation models, parameters, and core scripts
-├── Visualization/             # All visualization scripts and assets
-│   ├── Blender/                   # Blender animation files and scripts
-│   ├── Generated_Media/           # Rendered animations, KML, etc.
-│   ├── Python/                    # Python-based 3D animation/visualization
-│   └── (etc.)
+├── simulation_3dof/           # 3DOF simulation scripts, models, and setup
+│   ├── scripts/                   # Main scripts and setup for 3DOF
+│   ├── data/                      # Input/output data for 3DOF
+│   └── Visualization/             # Visualization assets for 3DOF
+├── simulation_6dof/           # 6DOF simulation scripts, models, and setup
+│   ├── scripts/                   # Main scripts and setup for 6DOF
+│   ├── data/                      # Input/output data for 6DOF
+│   └── Visualization/             # Visualization assets for 6DOF
 ├── docs/                      # Documentation and images
 │   └── images/
 ├── README.md                  # This file
@@ -81,30 +83,36 @@ The STEVE Rocket Model Simulation is a high-fidelity simulation framework design
 
 ### Basic Simulation
 
-1. Run `Simulator_Core/run_simulation.m` in MATLAB to execute the complete simulation:
-   - Initializes parameters, configures control, runs model, visualizes results, exports for external platforms
+
+### 3DOF Simulation
+1. Run `simulation_3dof/scripts/run_simulation.m` in MATLAB to execute the 3DOF simulation:
+  - Initializes parameters, configures control, runs model, visualizes results, exports for external platforms
+
+### 6DOF Simulation
+1. Run `simulation_6dof/scripts/run_simulation.m` in MATLAB to execute the 6DOF simulation:
+  - Uses `initialize_sim_params_6dof.m` and other updated setup scripts
+  - Provides full 6DOF flight dynamics and analysis
 
 _Alternatively, run each step individually in the relevant scripts for advanced workflows._
 
 ### Extended Visualization
 
-#### 3D Animation with Python
 
-1. Run `Visualization/visualizeRocketSimulation.m` in MATLAB to generate data
+#### 3D Animation with Python
+1. Run `simulation_3dof/Visualization/visualizeRocketSimulation.m` or `simulation_6dof/Visualization/visualizeRocketSimulation.m` in MATLAB to generate data
 2. Run `Visualization/Python/rocketpy_animation.py` for 3D animation
 
 #### Blender Animation
-
 1. Install Blender (https://www.blender.org/)
 2. Open `Visualization/Blender/RocketAnimation.blend`
 3. Run `blender_animation.py` inside Blender
 
 #### Google Earth Visualization
-
 1. Run `Visualization/Python/create_rocket_kml.py` to convert trajectory data to KML
 2. Open `Visualization/Generated_Media/rocket_trajectory_static.kml` in Google Earth
 
 ## Requirements
+
 
 ### MATLAB Requirements
 - **MATLAB R2025a** or newer
