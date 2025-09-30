@@ -1,7 +1,10 @@
 % run_simulation.m - Main script to run the STEVE rocket simulation
 
 % Ensure working directory is project root for correct relative paths
-cd(fileparts(fileparts(mfilename('fullpath'))));
+thisFile = mfilename('fullpath');
+scriptDir = fileparts(thisFile);
+repoRoot = fileparts(fileparts(fileparts(scriptDir))); % Go up to repo root
+cd(repoRoot);
 
 % --- Start with a clean environment ---
 clear;      % Clear workspace variables

@@ -6,8 +6,9 @@ fprintf('--- Initializing Simulation Parameters (Self-Contained, with Optional N
 
 % --- Project root (robust absolute path)
 thisFile = mfilename('fullpath');
-repoRoot = fileparts(fileparts(fileparts(fileparts(thisFile))));
-aeroMatFilePath = fullfile(repoRoot, 'simulation', 'data', 'input', 'CombinedAeroData_Grid_Symmetric_Corrected.mat');
+scriptDir = fileparts(thisFile);
+repoRoot = fileparts(fileparts(fileparts(scriptDir))); % Go up to repo root
+aeroMatFilePath = fullfile(repoRoot, 'simulation_3dof', 'data', 'input', 'CombinedAeroData_Grid_Symmetric_Corrected.mat');
 
 % --- Core parameters
 burn_time = 60;
@@ -133,7 +134,7 @@ ThrustLookupData.Tables.Thrust = single([27.6e3, 25.0e3]);
 RocketAero.Physical = RocketAeroPhysical;
 RocketAero.AeroData = AeroData;
 Ref_Area = RocketAeroPhysical.Reference_Area;
-sim_params.OutputDataPath = fullfile(repoRoot, 'simulation', 'data', 'output');
+sim_params.OutputDataPath = fullfile(repoRoot, 'simulation_3dof', 'data', 'output');
 sim_params.Sim = Sim;
 sim_params.Initial = Initial;
 sim_params.Actuators = Actuators;
