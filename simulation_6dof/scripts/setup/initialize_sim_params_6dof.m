@@ -1,17 +1,18 @@
 function sim_params = initialize_sim_params_6dof()
 % initialize_sim_params_6dof - Initializes all parameters for the STEVE rocket simulation (6DOF).
 % Self-contained, uses original variable names, allows a nose mass to be added.
+
 fprintf('--- Initializing Simulation Parameters (6DOF, Self-Contained, with Optional Nose Mass) ---\n');
 
 % --- Project root (robust relative path)
 thisFile = mfilename('fullpath');
 scriptDir = fileparts(thisFile);
 repoRoot = fileparts(fileparts(fileparts(scriptDir))); % Go up to repo root
-aeroMatFilePath = fullfile(repoRoot, 'simulation_6dof', 'data', 'input', 'CombinedAeroData_Grid_Symmetric_Corrected.mat');
+aeroMatFilePath = fullfile(repoRoot, 'simulation_6dof', 'data', 'input', 'CombinedAeroData_6DOF.mat');
 
 % --- Core parameters
 burn_time = 60;
-warm_up_time = 60;
+warm_up_time = 0;
 timeStep = 0.005;
 Sim.Timestep = 0.0001;
 
@@ -29,7 +30,7 @@ Actuators.Engine.BurnTime = burn_time;
 
 Initial.Conditions.V0 = 0.01;
 Initial.Conditions.h0 = 0;
-Initial.Conditions.theta0 = deg2rad(90);
+Initial.Conditions.theta0 = deg2rad(80);
 Initial.Conditions.pitchRate = 0.0;
 
 Wind.shear = 0;
@@ -148,8 +149,7 @@ if exist(aeroMatFilePath, 'file')
         AeroData.Tables.Cnalpha = AeroData.Tables.Cnalpha_0_4deg__perRad_;
         AeroData.Tables = rmfield(AeroData.Tables, 'Cnalpha_0_4deg__perRad_');
     end
-
-        % Normalize CA name: CAPower_On -> CA
+    % Normalize CA name: CAPower_On -> CA
     if isfield(AeroData.Tables, 'CAPower_On')
         AeroData.Tables.CA = AeroData.Tables.CAPower_On;
         AeroData.Tables = rmfield(AeroData.Tables, 'CAPower_On');
@@ -176,21 +176,45 @@ if exist(aeroMatFilePath, 'file')
         error('AeroData.Tables.CN not found; cannot create CY from CN.');
     end
 
-    % CYbeta table: mirror Cnalpha numerically (axisymmetric slope equivalence)
+    % CYbeta table: mirror CNalpha numerically (axisymmetric slope equivalence)
     if isfield(AeroData.Tables, 'CNalpha')
         AeroData.Tables.CYbeta = AeroData.Tables.CNalpha; % per-radian slope
     else
-        warning('AeroData.Tables.Cnalpha not found; CYbeta not created.');
+        warning('AeroData.Tables.CNalpha not found; CYbeta not created.');
     end
 
-    % Optional: expose sign convention control if needed later
-    % signCYbeta = +1;  % set to -1 if your sideslip/axis sign convention requires it
-    % AeroData.Tables.CYbeta = signCYbeta * AeroData.Tables.CYbeta;
+    % ===============================
+    % Handle AlphaTot, Cmq and Cmq_beta
+    % ===============================
+    % AlphaTot breakpoints
+    if isfield(AeroData.Breakpoints, 'AlphaTot')
+        AlphaTot_Breakpoints = AeroData.Breakpoints.AlphaTot;
+    else
+        AlphaTot_Breakpoints = Alpha_Breakpoints; % alias if missing
+        AeroData.Breakpoints.AlphaTot = AlphaTot_Breakpoints;
+    end
 
-    % Record how CY/CYbeta were created (metadata)
+    % CA_AlphaTot / CP_AlphaTot aliases if missing
+    if ~isfield(AeroData.Tables, 'CA_AlphaTot') && isfield(AeroData.Tables, 'CA')
+        AeroData.Tables.CA_AlphaTot = AeroData.Tables.CA;
+    end
+    if ~isfield(AeroData.Tables, 'CP_AlphaTot') && isfield(AeroData.Tables, 'CP')
+        AeroData.Tables.CP_AlphaTot = AeroData.Tables.CP;
+    end
+
+    % Cmq and Cmq_beta presence (fallback to zeros/mirror)
+    if ~isfield(AeroData.Tables,'Cmq')
+        warning('AeroData.Tables.Cmq not found; setting to zeros.');
+        AeroData.Tables.Cmq = zeros(numel(Mach_Breakpoints), numel(Alpha_Breakpoints), 'like', AeroData.Tables.CN);
+    end
+    if ~isfield(AeroData.Tables,'Cmq_beta')
+        warning('AeroData.Tables.Cmq_beta not found; mirroring Cmq.');
+        AeroData.Tables.Cmq_beta = AeroData.Tables.Cmq;
+    end
+
+    % Metadata
     AeroData.Metadata.Axisymmetry.CY_from_CN       = true;
     AeroData.Metadata.Axisymmetry.CYbeta_from_CNa  = isfield(AeroData.Tables,'CYbeta');
-
 else
     error('Aerodynamic MAT file not found: %s', aeroMatFilePath);
 end
@@ -216,12 +240,9 @@ sim_params.PrelookupData      = PrelookupData;
 sim_params.ThrustLookupData   = ThrustLookupData;
 sim_params.Mach_Breakpoints   = Mach_Breakpoints;
 sim_params.Alpha_Breakpoints  = Alpha_Breakpoints;
+sim_params.Beta_Breakpoints   = Beta_Breakpoints;
+sim_params.AlphaTot_Breakpoints = AlphaTot_Breakpoints;
 sim_params.Ref_Area           = Ref_Area;
-
-% Also return Beta breakpoints if created
-if exist('Beta_Breakpoints','var')
-    sim_params.Beta_Breakpoints = Beta_Breakpoints;
-end
 
 % Push to base workspace (Simulink convenience)
 assignin('base', 'Sim', Sim);
@@ -235,7 +256,8 @@ assignin('base', 'rocket_length', RocketAeroPhysical.Length);
 assignin('base', 'AeroData', AeroData);
 assignin('base', 'Mach_Breakpoints', Mach_Breakpoints);
 assignin('base', 'Alpha_Breakpoints', Alpha_Breakpoints);
-if exist('Beta_Breakpoints','var'), assignin('base', 'Beta_Breakpoints', Beta_Breakpoints); end
+assignin('base', 'Beta_Breakpoints', Beta_Breakpoints);
+assignin('base', 'AlphaTot_Breakpoints', AlphaTot_Breakpoints);
 assignin('base', 'PrelookupData', PrelookupData);
 assignin('base', 'ThrustLookupData', ThrustLookupData);
 assignin('base', 'RocketAero', RocketAero);
@@ -255,11 +277,22 @@ fprintf('\n--- Thrust-to-Weight Ratio at Launch: %.3f', initial_TWR);
 fprintf('\n--- Min MOI: %.3f', min(new_MOIx_Z));
 fprintf('\n--- Max CG: %.3f', max(new_COM_Z));
 if isfield(AeroData.Tables,'CY')
-    fprintf('\n--- Lateral CY table created from CN (axisymmetric).');
+    fprintf('\n--- Lateral CY table ready (axisymmetric mirror of CN).');
 end
 if isfield(AeroData.Tables,'CYbeta')
-    fprintf('\n--- Lateral CYbeta table created from Cnalpha (axisymmetric).');
+    fprintf('\n--- Lateral CYbeta table ready (mirror of CNalpha).');
+end
+if isfield(AeroData.Tables,'Cmq')
+    fprintf('\n--- Cmq ready (lumped pitch-rate damping).');
+end
+if isfield(AeroData.Tables,'Cmq_beta')
+    fprintf('\n--- Cmq_beta ready (mirrored beta-plane damping).');
+end
+if isfield(AeroData.Tables,'CA_AlphaTot')
+    fprintf('\n--- CA_AlphaTot present (use with total AoA).');
+end
+if isfield(AeroData.Tables,'CP_AlphaTot')
+    fprintf('\n--- CP_AlphaTot present (use with total AoA).');
 end
 fprintf('\n--- Initialization Complete ---\n');
-
 end

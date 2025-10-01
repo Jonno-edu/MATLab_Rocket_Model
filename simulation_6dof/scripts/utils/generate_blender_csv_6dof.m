@@ -1,4 +1,4 @@
-function generate_blender_csv(simOut)
+function generate_blender_csv_6dof(simOut)
 % Generate a CSV for Blender animation from simOut, including forces, CP, alpha, and thrust
 
 csv_filename = 'trajectory_for_blender_60fps.csv';
