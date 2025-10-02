@@ -30,13 +30,13 @@
       "problemMatcher": ["$gcc"]
     },
     {
-      "label": "Run Blender Animation Script",
+      "label": "Run Blender 6DOF Animation Script",
       "type": "shell",
       "command": "/Applications/Blender.app/Contents/MacOS/Blender",
       "args": [
-        "Visualization/Blender/RocketAnimation.blend",
+        "simulation_6dof/Visualization/Blender/RocketAnimation_6dof.blend",
         "-P",
-        "Visualization/Blender/blender_animation.py"
+        "simulation_6dof/Visualization/Blender/blender_animation_6dof.py"
       ],
       "group": "build",
       "presentation": {

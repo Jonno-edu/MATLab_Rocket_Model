@@ -1,9 +1,10 @@
 function inspect_logsout_deep(simOut)
 % inspect_logsout_deep - Iterates through signals in logsout, inspects
 %                        nested bus structures, and prints parsing instructions.
+% Usage: For output from STEVE_Simulation_6DOF.slx (6DOF rocket model)
 % Inputs:
-%   simOut: The output struct from the Simulink simulation (e.g., 'out')
-
+%   simOut: The output struct from the Simulink simulation (e.g., from STEVE_Simulation_6DOF.slx)
+addpath '/Users/jonno/MATLAB-Drive/masters-rocket-control-repository/simulation_6dof/scripts/utils'
 % --- Initial Checks ---
 if ~exist('simOut', 'var') || isempty(simOut)
     error('inspect_logsout_deep: simOut variable not provided or is empty.');
@@ -47,6 +48,7 @@ fprintf('--- End of signal iteration ---\n');
 % --- Instructions for Programmatically Accessing Logged Signal Data ---
 fprintf('\n\n--- How to Programmatically Access Logged Signal Data (Based on Above Structure) ---\n');
 fprintf('The simulation output `simOut` contains logged signals in `simOut.logsout`.\n');
+fprintf('This function is intended for use with STEVE_Simulation_6DOF.slx.\n');
 fprintf('To work with this data, first get the logsout object: `logsout_data = simOut.logsout;`\n\n');
 
 fprintf('1. Accessing Top-Level Signals:\n');

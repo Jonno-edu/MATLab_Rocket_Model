@@ -31,8 +31,10 @@ load_system(modelName);
 disp('Simulink model loaded.');
 
 % Set simulation time
-simTime = 70;
+simTime = 10;
 disp(['Simulation stop time set to: ', num2str(simTime), ' seconds.']);
+
+euler_0 = deg2rad([0 180 0]);
 
 % Run simulation
 disp('Starting Simulink simulation...');
@@ -46,7 +48,7 @@ disp('Simulink simulation finished.');
 
 % --- Generate CSV for Blender using the new function ---
 % You can specify a custom suffix if desired, e.g., '_my_specific_run_60fps'
-% generate_blender_csv(simOut); % Uses default suffix
+generate_blender_csv_6dof(simOut); % Uses default suffix
 
 % --- Plot results ---
 % disp('Calling plot_simulation_results...');
