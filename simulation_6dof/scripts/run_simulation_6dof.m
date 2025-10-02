@@ -34,7 +34,7 @@ disp('Simulink model loaded.');
 simTime = 10;
 disp(['Simulation stop time set to: ', num2str(simTime), ' seconds.']);
 
-euler_0 = deg2rad([0 180 0]);
+euler_0 = deg2rad([0 70 20]);
 
 % Run simulation
 disp('Starting Simulink simulation...');
