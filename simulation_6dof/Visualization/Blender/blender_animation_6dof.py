@@ -15,6 +15,7 @@ csv_file_path = os.path.join(blend_dir, "../../scripts/data/output/trajectory_bl
 
 # Scene setup
 scene = bpy.context.scene
+
 fps = scene.render.fps
 cg = bpy.data.objects[cg_name]
 

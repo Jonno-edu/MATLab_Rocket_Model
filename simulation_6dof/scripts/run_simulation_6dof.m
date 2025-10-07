@@ -21,7 +21,7 @@ disp('Initializing simulation parameters...');
 sim_params = initialize_sim_params_6dof();
 disp('Initialization of sim_params complete.');
 
-discrete_controller_design
+discrete_controller_design 
 
 
 % Load Simulink model
@@ -31,10 +31,10 @@ load_system(modelName);
 disp('Simulink model loaded.');
 
 % Set simulation time
-simTime = 10;
+simTime = 60;
 disp(['Simulation stop time set to: ', num2str(simTime), ' seconds.']);
 
-euler_0 = deg2rad([0 70 20]);
+euler_0 = deg2rad([0 90 0]);
 
 % Run simulation
 disp('Starting Simulink simulation...');

@@ -2,7 +2,7 @@
 
 %% --- 1. System Parameters & Constraints ---
 % Vehicle physical properties @ Max Q
-T = 26600;        % Thrust (N)
+T = 26540;        % Thrust (N)
 l_CG = 4.74;     % Nozzle to CG distance (m)
 I_y = 21846;      % Pitch moment of inertia (kg*m^2)
 % Actuator hardware model
