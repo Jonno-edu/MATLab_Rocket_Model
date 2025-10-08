@@ -13,8 +13,13 @@ Malpha_maxQ = 15e4;
 Mq_maxQ = -4710;
 
 % Launch condition (zero velocity, no aero)
+T_launch = 23797;
+l_CG_launch = 4.018;
+I_y_launch = 19150;
+
 Malpha_launch = 0;
 Mq_launch = 0;
+
 
 %% Build Plant Models
 % Max Q plant
@@ -25,8 +30,8 @@ D_maxQ = 0;
 sys_maxQ = ss(A_maxQ, B_maxQ, C_maxQ, D_maxQ);
 
 % Launch plant
-A_launch = [0, 1; Malpha_launch/I_y, Mq_launch/I_y];
-B_launch = [0; (T*l_CG)/I_y];
+A_launch = [0, 1; Malpha_launch/I_y_launch, Mq_launch/I_y_launch];
+B_launch = [0; (T_launch*l_CG_launch)/I_y_launch];
 C_launch = [0, 1];
 D_launch = 0;
 sys_launch = ss(A_launch, B_launch, C_launch, D_launch);
