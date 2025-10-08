@@ -1,15 +1,18 @@
 % run_simulation.m - Main script to run the STEVE rocket simulation
 
-% Ensure working directory is project root for correct relative paths
-thisFile = mfilename('fullpath');
-scriptDir = fileparts(thisFile);
-repoRoot = fileparts(fileparts(fileparts(scriptDir))); % Go up to repo root
-cd(repoRoot);
-
 % --- Start with a clean environment ---
 clear;      % Clear workspace variables
 clc;        % Clear command window
 close all;  % Close all open figure windows
+
+% Add script subdirectories to MATLAB path
+% From run_simulation.m location, go to parent (scripts/), then to subdirectories
+addpath(fullfile(fileparts(mfilename('fullpath')), 'analysis'));
+addpath(fullfile(fileparts(mfilename('fullpath')), 'setup'));
+addpath(fullfile(fileparts(mfilename('fullpath')), 'utils'));
+
+% Change to repo root directory (3 levels up from scripts/)
+cd(fileparts(fileparts(fileparts(mfilename('fullpath')))));
 
 fprintf('--- Starting New Simulation Run ---\n');
 

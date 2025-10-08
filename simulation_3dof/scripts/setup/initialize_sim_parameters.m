@@ -36,7 +36,7 @@ Wind.shear = 0;
 
 % --- Nose mass settings
 add_nose_mass = true;
-nose_mass = 100;      % [kg] mass to add
+nose_mass = 0;      % [kg] mass to add
 nose_mass_location = 0; % [m] from nose tip
 
 % --- Time vector and # points

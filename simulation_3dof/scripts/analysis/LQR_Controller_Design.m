@@ -12,7 +12,8 @@ unit_test = true;
 
 
 % Load simulation data
-filename = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'data', 'output', 'simOut_heavy_benchmark.mat'); % Updated for new structure
+% Navigate from scripts/analysis/ -> scripts/ -> simulation_3dof/ -> data/output/
+filename = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'data', 'output', 'simOut_heavy_benchmark.mat');
 try
     load(filename);
     fprintf('Successfully loaded flight data from %s.\n', filename);

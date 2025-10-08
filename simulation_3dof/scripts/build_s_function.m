@@ -2,9 +2,15 @@
 % This script compiles the S-Function wrapper and links it with the
 % shared controller source code.
 
-% Define paths relative to this script's location
-sfun_folder = '../s_functions';
-shared_src_folder = '../../src/controller';
+% Get absolute paths based on script location
+thisFile = mfilename('fullpath');
+scriptDir = fileparts(thisFile);
+sim3dofRoot = fileparts(scriptDir); % Go up from scripts/ to simulation_3dof/
+repoRoot = fileparts(sim3dofRoot); % Go up from simulation_3dof/ to repo root
+
+% Define paths
+sfun_folder = fullfile(sim3dofRoot, 's_functions');
+shared_src_folder = fullfile(repoRoot, 'src', 'controller');
 
 % Construct the source file paths
 wrapper_file = fullfile(sfun_folder, 'sfcontroller_wrapper.c');
