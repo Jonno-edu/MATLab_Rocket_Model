@@ -17,6 +17,7 @@ cd(fileparts(fileparts(fileparts(mfilename('fullpath')))));
 fprintf('--- Starting New Simulation Run ---\n');
 
 % Initialize parameters
+
 disp('Initializing simulation parameters...');
 sim_params = initialize_sim_parameters();
 disp('Initialization of sim_params complete.');

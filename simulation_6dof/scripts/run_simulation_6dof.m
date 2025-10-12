@@ -6,6 +6,7 @@ cd(fileparts(fileparts(mfilename('fullpath'))));
 addpath('/Users/jonno/MATLAB-Drive/masters-rocket-control-repository/simulation_6dof/scripts');
 addpath('/Users/jonno/MATLAB-Drive/masters-rocket-control-repository/simulation_6dof/scripts/setup');
 addpath('/Users/jonno/MATLAB-Drive/masters-rocket-control-repository/simulation_6dof/scripts/analysis');
+addpath('/Users/jonno/MATLAB-Drive/masters-rocket-control-repository/simulation_6dof/scripts/utils');
 addpath('/Users/jonno/MATLAB-Drive/masters-rocket-control-repository/simulation_6dof/models');
 addpath('/Users/jonno/MATLAB-Drive/masters-rocket-control-repository/simulation_6dof/s_functions');
 addpath('/Users/jonno/MATLAB-Drive/masters-rocket-control-repository/simulation_6dof/data');
@@ -34,7 +35,7 @@ disp('Simulink model loaded.');
 simTime = 60;
 disp(['Simulation stop time set to: ', num2str(simTime), ' seconds.']);
 
-euler_0 = deg2rad([0 90 0]);
+euler_0 = deg2rad([0 80 0]);
 
 % Run simulation
 disp('Starting Simulink simulation...');

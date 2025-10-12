@@ -2,7 +2,8 @@ function generate_blender_csv(simOut)
 % Generate a CSV for Blender animation from simOut, including forces, CP, alpha, and thrust
 
 csv_filename = 'trajectory_for_blender_60fps.csv';
-output_folder = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'data', 'output');
+% Navigate from scripts/utils/ -> scripts/ -> simulation_3dof/ -> data/output/
+output_folder = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'data', 'output');
 if ~exist(output_folder, 'dir')
     mkdir(output_folder);
 end
