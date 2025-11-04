@@ -1,16 +1,18 @@
 add_executable(pico_hil
   main.c
-  ../../../../src/utils/led.c
+  ../../../../src/controller/controller.c
 )
 
 target_include_directories(pico_hil PRIVATE
   ../../../../src/utils
+  ../../../../src/controller
 )
 
 target_link_libraries(pico_hil
   pico_stdlib
   pico_cyw43_arch_none
   hardware_gpio
+  m  # for math functions
 )
 
 pico_enable_stdio_usb(pico_hil 1)

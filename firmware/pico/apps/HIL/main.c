@@ -1,28 +1,37 @@
-/**
- * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
-#include "pico/stdlib.h"
-#include "pico/cyw43_arch.h"
+// test_simple_echo.c
 #include <stdio.h>
-#include "led.h"
+#include "pico/stdlib.h"
 
 int main() {
     stdio_init_all();
-    printf("HIL App: Initializing...\n");
-
-    // For Pico W devices we need to initialise the driver
-    if (cyw43_arch_init()) {
-        printf("HIL App: WiFi driver failed to initialize.\n");
-        return -1;
-    }
-    printf("HIL App: WiFi driver initialized successfully.\n");
-    printf("HIL App: Starting main loop.\n");
-
-    while (true) {
-        // Call the shared LED flashing function
-        flash_led(10);
+    sleep_ms(2000);
+    
+    // LED setup
+    gpio_init(25);
+    gpio_set_dir(25, GPIO_OUT);
+    gpio_put(25, 1);  // Ready
+    
+    float input;
+    uint8_t* input_ptr = (uint8_t*)&input;
+    size_t bytes_received = 0;
+    
+    while (1) {
+        int c = getchar_timeout_us(0);
+        
+        if (c != PICO_ERROR_TIMEOUT) {
+            input_ptr[bytes_received++] = (uint8_t)c;
+            
+            if (bytes_received == 4) {  // Got 1 float
+                gpio_put(25, 0);  // Processing
+                
+                float output = input * 2.0f;
+                fwrite(&output, sizeof(float), 1, stdout);
+                fflush(stdout);
+                
+                bytes_received = 0;
+                gpio_put(25, 1);  // Ready
+            }
+        }
+        sleep_us(10);
     }
 }

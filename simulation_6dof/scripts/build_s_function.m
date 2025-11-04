@@ -13,7 +13,18 @@ controller_file = fullfile(shared_src_folder, 'controller.c');
 % Construct the include path argument
 include_path = ['-I' shared_src_folder];
 
-% Run the mex command
-fprintf('Building S-Function...\n');
-mex(include_path, wrapper_file, controller_file);
-fprintf('Build complete.\n');
+% Run the mex command with verbose output
+fprintf('Compiling S-function...\n');
+
+try
+    mex('-v', ...
+        wrapper_file, ...
+        controller_file, ...
+        include_path, ...
+        '-outdir', pwd);
+
+    fprintf('✓ Successfully compiled sfcontroller_wrapper.%s\n', mexext);
+
+catch ME
+    fprintf('✗ Compilation failed:\n%s\n', ME.message);
+end
