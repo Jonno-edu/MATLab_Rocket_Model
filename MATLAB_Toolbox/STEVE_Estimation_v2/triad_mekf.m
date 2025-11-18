@@ -18,10 +18,10 @@ sigma_gyro_noise = deg2rad(0.1);
 sigma_bias_walk = deg2rad(0.001);
 
 % Phase detection thresholds
-warm_up_threshold = 1.2;
+warm_up_threshold = 1.1;
 thrust_threshold = 15.0;
 coast_threshold = 2.0;
-launch_duration = 3.0;
+launch_duration = 4.0;
 min_thrust_duration = 0.5;
 
 % Adaptive measurement noise by phase
@@ -36,9 +36,10 @@ fprintf('Launch   σ: %.1f° (R = %.4f rad²)\n', rad2deg(sigma_triad_launch), s
 fprintf('Boost    σ: %.1f° (R = %.4f rad²)\n', rad2deg(sigma_triad_thrust), sigma_triad_thrust^2);
 fprintf('Coast    σ: %.1f° (R = %.4f rad²)\n\n', rad2deg(sigma_triad_coast), sigma_triad_coast^2);
 
-% Initialize quaternion
+% Initialize quaternion and bias
 q_est = [1; 0; 0; 0];
 bias_est = zeros(3, 1);
+mekf_initialized = false;   % will be set true at first TRIAD
 
 % GPS update parameters
 gps_hz = 20;
@@ -61,7 +62,6 @@ fc_gps_other = 0.5;
 dt_gps = 1 / gps_hz;
 
 fprintf('GPS Velocity LPF: Adaptive - Warm-up: %.1f Hz, Launch/Boost/Coast: %.1f Hz\n\n', fc_gps_warmup, fc_gps_other);
-
 if enable_gps_lock_high_accel
     fprintf('GPS Lock Enabled: GPS measurements locked above %.1f g (%.1f m/s²)\n', gps_lock_accel_threshold/g0, gps_lock_accel_threshold);
     fprintf('GPS Reactivation Delay: %.1f seconds with increased R\n\n', gps_reactivation_delay);
@@ -74,6 +74,12 @@ gps_Ve_North_filt = 0;
 gps_Ve_East_filt = 0;
 gps_Ve_Down_filt = 0;
 gps_filter_initialized = false;
+
+% Unfiltered GPS velocity tracking
+gps_Ve_North_prev = 0;
+gps_Ve_East_prev = 0;
+gps_Ve_Down_prev = 0;
+gps_raw_initialized = false;
 
 % State machine variables
 current_phase = 0;
@@ -94,8 +100,12 @@ mekf_yaw = zeros(n_samples, 1);
 triad_roll = zeros(n_samples, 1);
 triad_pitch = zeros(n_samples, 1);
 triad_yaw = zeros(n_samples, 1);
+triad_raw_roll = zeros(n_samples, 1);
+triad_raw_pitch = zeros(n_samples, 1);
+triad_raw_yaw = zeros(n_samples, 1);
 error_angle_mekf = zeros(n_samples, 1);
 error_angle_triad = zeros(n_samples, 1);
+error_angle_triad_raw = zeros(n_samples, 1);
 error_roll_quat = zeros(n_samples, 1);
 error_pitch_quat = zeros(n_samples, 1);
 error_yaw_quat = zeros(n_samples, 1);
@@ -121,7 +131,6 @@ skew = @(w) [0 -w(3) w(2); w(3) 0 -w(1); -w(2) w(1) 0];
 
 %% Main Loop
 fprintf('Processing %d samples with Adaptive MEKF...\n', n_samples);
-
 for k = 2:n_samples+1
     index = k;
     
@@ -250,11 +259,20 @@ for k = 2:n_samples+1
         end
         alpha_gps = exp(-2 * pi * fc_gps * dt_gps);
         
-        % Get and filter GPS velocities
+        % Get raw GPS velocities
         gps_Ve_North_raw = line2.gps_Ve_North;
         gps_Ve_East_raw = line2.gps_Ve_East;
         gps_Ve_Down_raw = line2.gps_Ve_Down;
         
+        % Initialize unfiltered GPS tracking
+        if ~gps_raw_initialized
+            gps_Ve_North_prev = gps_Ve_North_raw;
+            gps_Ve_East_prev = gps_Ve_East_raw;
+            gps_Ve_Down_prev = gps_Ve_Down_raw;
+            gps_raw_initialized = true;
+        end
+        
+        % Filter GPS velocities
         if ~gps_filter_initialized
             gps_Ve_North_filt = gps_Ve_North_raw;
             gps_Ve_East_filt = gps_Ve_East_raw;
@@ -273,18 +291,19 @@ for k = 2:n_samples+1
             gps_Ve_Down_filt = alpha_gps * gps_Ve_Down_filt + (1 - alpha_gps) * gps_Ve_Down_raw;
         end
         
-        % Calculate acceleration from filtered GPS
+        % Get time delta
         gps_line1 = data(last_gps_index, :);
         gps_line2 = data(index, :);
         dt_gps_actual = (gps_line2.time_ms - gps_line1.time_ms) / 1000;
         
         if dt_gps_actual > 0
+            % Compute TRIAD with FILTERED GPS (used by MEKF)
             a_inertial_NED = ([gps_Ve_North_filt; gps_Ve_East_filt; gps_Ve_Down_filt] - ...
                               [gps_Ve_North_filt_prev; gps_Ve_East_filt_prev; gps_Ve_Down_filt_prev]) / dt_gps;
             
             accel_mag_inertial(k-1) = norm(a_inertial_NED);
             
-            % Construct TRIAD vectors
+            % Construct TRIAD vectors (filtered)
             a_gravity_NED = [0; 0; g0];
             ref_vector_1_NED = a_inertial_NED - a_gravity_NED;
             ref_vector_2_NED = [0; 27; 0];
@@ -306,7 +325,7 @@ for k = 2:n_samples+1
             sigma_used(k-1) = rad2deg(sigma_triad);
             R_meas = sigma_triad^2 * eye(3);
             
-            % TRIAD solution
+            % TRIAD solution (filtered)
             B = obs_vector_1_body * ref_vector_1_NED' + obs_vector_2_body * ref_vector_2_NED';
             [U, ~, V] = svd(B);
             M = diag([1, 1, det(U) * det(V)]);
@@ -314,33 +333,72 @@ for k = 2:n_samples+1
             q_triad = rotm2quat(R_triad)';
             if q_triad(1) < 0, q_triad = -q_triad; end
             
-            % Compute error
-            q_err = quatmult(quatconj(q_est), q_triad);
-            if q_err(1) < 0, q_err = -q_err; end
-            z = 2 * q_err(2:4);
+            % On first TRIAD, initialize MEKF attitude from TRIAD and skip correction
+            if ~mekf_initialized
+                q_est = q_triad;
+                q_est = q_est / norm(q_est);
+                mekf_initialized = true;
+            else
+                % Compute error
+                q_err = quatmult(quatconj(q_est), q_triad);
+                if q_err(1) < 0, q_err = -q_err; end
+                z = 2 * q_err(2:4);
+                
+                % Kalman update
+                H = [eye(3), zeros(3, 3)];
+                S = H * P * H' + R_meas;
+                K = P * H' / S;
+                x = K * z;
+                
+                % Apply correction
+                delta_q = delta_theta_to_quat(x(1:3));
+                q_est = quatmult(q_est, delta_q);
+                q_est = q_est / norm(q_est);
+                bias_est = bias_est + x(4:6);
+                x(1:3) = zeros(3, 1);
+                
+                % Update covariance
+                P = (eye(6) - K * H) * P;
+            end
             
-            % Kalman update
-            H = [eye(3), zeros(3, 3)];
-            S = H * P * H' + R_meas;
-            K = P * H' / S;
-            x = K * z;
-            
-            % Apply correction
-            delta_q = delta_theta_to_quat(x(1:3));
-            q_est = quatmult(q_est, delta_q);
-            q_est = q_est / norm(q_est);
-            bias_est = bias_est + x(4:6);
-            x(1:3) = zeros(3, 1);
-            
-            % Update covariance
-            P = (eye(6) - K * H) * P;
             last_gps_index = index;
             
-            % Store TRIAD
+            % Store TRIAD (filtered)
             triad_eul = rad2deg(rotm2eul(R_triad, 'ZYX'));
             triad_roll(k-1) = triad_eul(3);
             triad_pitch(k-1) = triad_eul(2);
             triad_yaw(k-1) = triad_eul(1);
+            
+            % Compute TRIAD with UNFILTERED GPS
+            a_inertial_NED_raw = ([gps_Ve_North_raw; gps_Ve_East_raw; gps_Ve_Down_raw] - ...
+                                  [gps_Ve_North_prev; gps_Ve_East_prev; gps_Ve_Down_prev]) / dt_gps;
+            
+            ref_vector_1_NED_raw = a_inertial_NED_raw - a_gravity_NED;
+            
+            % TRIAD solution (unfiltered)
+            B_raw = obs_vector_1_body * ref_vector_1_NED_raw' + obs_vector_2_body * ref_vector_2_NED';
+            [U_raw, ~, V_raw] = svd(B_raw);
+            M_raw = diag([1, 1, det(U_raw) * det(V_raw)]);
+            R_triad_raw = V_raw * M_raw * U_raw';
+            q_triad_raw = rotm2quat(R_triad_raw)';
+            if q_triad_raw(1) < 0, q_triad_raw = -q_triad_raw; end
+            
+            % Store TRIAD (unfiltered)
+            triad_raw_eul = rad2deg(rotm2eul(R_triad_raw, 'ZYX'));
+            triad_raw_roll(k-1) = triad_raw_eul(3);
+            triad_raw_pitch(k-1) = triad_raw_eul(2);
+            triad_raw_yaw(k-1) = triad_raw_eul(1);
+            
+            % Compute TRIAD raw error
+            true_quat = [line2.ref_qw, line2.ref_qx, line2.ref_qy, line2.ref_qz];
+            q_err_triad_raw = quatmultiply(true_quat, quatinv(rotm2quat(R_triad_raw)));
+            error_angle_rad_raw = 2 * acos(min(abs(q_err_triad_raw(1)), 1.0));
+            error_angle_triad_raw(k-1) = rad2deg(error_angle_rad_raw);
+            
+            % Update previous raw GPS velocities
+            gps_Ve_North_prev = gps_Ve_North_raw;
+            gps_Ve_East_prev = gps_Ve_East_raw;
+            gps_Ve_Down_prev = gps_Ve_Down_raw;
         end
     else
         % Propagate values
@@ -350,6 +408,10 @@ for k = 2:n_samples+1
             triad_roll(k-1) = triad_roll(k-2);
             triad_pitch(k-1) = triad_pitch(k-2);
             triad_yaw(k-1) = triad_yaw(k-2);
+            triad_raw_roll(k-1) = triad_raw_roll(k-2);
+            triad_raw_pitch(k-1) = triad_raw_pitch(k-2);
+            triad_raw_yaw(k-1) = triad_raw_yaw(k-2);
+            error_angle_triad_raw(k-1) = error_angle_triad_raw(k-2);
         end
     end
     
@@ -392,20 +454,17 @@ for k = 2:n_samples+1
         fprintf('Processed %d/%d (%.1f%%) - Phase: %d\n', k-1, n_samples, 100*(k-1)/n_samples, current_phase);
     end
 end
-
 fprintf('Processing complete!\n\n');
 
 %% Phase Statistics
 phase_names = {'Warm-up', 'Boost', 'Coast', 'Launch'};
 phase_colors = {'g', 'r', 'b', 'm'};
-
 fprintf('=== FLIGHT PHASE DISTRIBUTION ===\n');
 for p = 0:3
     phase_samples = sum(flight_phase == p);
     fprintf('%s: %d samples (%.2f s, %.1f%%)\n', phase_names{p+1}, ...
         phase_samples, phase_samples/imu_hz, 100*phase_samples/n_samples);
 end
-
 if ~isempty(phase_transitions)
     fprintf('\n=== PHASE TRANSITIONS ===\n');
     for i = 1:size(phase_transitions, 1)
@@ -438,7 +497,6 @@ for p = 0:3
             max(error_angle_mekf(phase_mask)));
     end
 end
-
 fprintf('\n=== OVERALL MEKF STATISTICS (Quaternion-Based) ===\n');
 fprintf('Roll  - Mean: %.4f°, Std: %.4f°, Max: %.4f°\n', ...
     mean(abs(error_roll_quat)), std(error_roll_quat), max(abs(error_roll_quat)));
@@ -448,7 +506,6 @@ fprintf('Yaw   - Mean: %.4f°, Std: %.4f°, Max: %.4f°\n', ...
     mean(abs(error_yaw_quat)), std(error_yaw_quat), max(abs(error_yaw_quat)));
 fprintf('Total - Mean: %.4f°, Std: %.4f°, Max: %.4f°\n', ...
     mean(error_angle_mekf), std(error_angle_mekf), max(error_angle_mekf));
-
 fprintf('\n=== FINAL GYRO BIAS ESTIMATES ===\n');
 fprintf('X: %.4f deg/s\n', bias_x(end));
 fprintf('Y: %.4f deg/s\n', bias_y(end));
@@ -462,14 +519,13 @@ tabgroup = uitabgroup(fig);
 color_true = [0, 0, 0];
 color_mekf = [0, 0.4470, 0.7410];
 color_triad = [0.8500, 0.3250, 0.0980];
+color_triad_raw = [0.9290, 0.6940, 0.1250];
 color_error = [0.6350, 0.0780, 0.1840];
 
 %% TAB 1: Attitude Estimates
 tab1 = uitab(tabgroup, 'Title', 'Attitude Estimates');
 axes('Parent', tab1);
-
 gps_idx = find(gps_update_flags);
-
 subplot(3,1,1);
 hold on; grid on;
 plot(time_s, true_roll, 'Color', color_true, 'LineWidth', 1.5, 'DisplayName', 'True');
@@ -482,7 +538,6 @@ ylabel('Roll (deg)');
 title('Attitude Estimates vs True Values');
 legend('Location', 'best');
 add_phase_background(time_s, flight_phase, phase_colors);
-
 subplot(3,1,2);
 hold on; grid on;
 plot(time_s, true_pitch, 'Color', color_true, 'LineWidth', 1.5, 'DisplayName', 'True');
@@ -494,7 +549,6 @@ end
 ylabel('Pitch (deg)');
 legend('Location', 'best');
 add_phase_background(time_s, flight_phase, phase_colors);
-
 subplot(3,1,3);
 hold on; grid on;
 plot(time_s, true_yaw, 'Color', color_true, 'LineWidth', 1.5, 'DisplayName', 'True');
@@ -516,7 +570,6 @@ axes('Parent', tab2);
 triad_error_roll = zeros(size(error_roll_quat));
 triad_error_pitch = zeros(size(error_pitch_quat));
 triad_error_yaw = zeros(size(error_yaw_quat));
-
 for i = 1:length(gps_idx)
     idx = gps_idx(i);
     triad_error_roll(idx) = triad_roll(idx) - true_roll(idx);
@@ -573,20 +626,17 @@ add_phase_background(time_s, flight_phase, phase_colors);
 %% TAB 3: Gyro Bias Estimates
 tab3 = uitab(tabgroup, 'Title', 'Gyro Bias');
 axes('Parent', tab3);
-
 subplot(3,1,1);
 hold on; grid on;
 plot(time_s, bias_x, 'LineWidth', 1.2);
 ylabel('X Bias (deg/s)');
 title('Gyro Bias Estimates');
 add_phase_background(time_s, flight_phase, phase_colors);
-
 subplot(3,1,2);
 hold on; grid on;
 plot(time_s, bias_y, 'LineWidth', 1.2);
 ylabel('Y Bias (deg/s)');
 add_phase_background(time_s, flight_phase, phase_colors);
-
 subplot(3,1,3);
 hold on; grid on;
 plot(time_s, bias_z, 'LineWidth', 1.2);
@@ -597,7 +647,6 @@ add_phase_background(time_s, flight_phase, phase_colors);
 %% TAB 4: Acceleration Profiles
 tab4 = uitab(tabgroup, 'Title', 'Acceleration');
 axes('Parent', tab4);
-
 subplot(3,1,1);
 hold on; grid on;
 plot(time_s, accel_mag_body / g0, 'LineWidth', 1.2, 'Color', [0.2, 0.6, 0.8]);
@@ -610,13 +659,11 @@ ylabel('Body Accel (g)');
 title('Acceleration Profiles');
 legend('Location', 'best');
 add_phase_background(time_s, flight_phase, phase_colors);
-
 subplot(3,1,2);
 hold on; grid on;
 plot(time_s, accel_mag_inertial, 'LineWidth', 1.2, 'Color', [0.8, 0.4, 0.2]);
 ylabel('Inertial Accel (m/s²)');
 add_phase_background(time_s, flight_phase, phase_colors);
-
 subplot(3,1,3);
 hold on; grid on;
 plot(time_s, flight_phase, 'LineWidth', 2);
@@ -630,14 +677,12 @@ grid on;
 %% TAB 5: Adaptive Parameters
 tab5 = uitab(tabgroup, 'Title', 'Adaptive R & GPS');
 axes('Parent', tab5);
-
 subplot(3,1,1);
 hold on; grid on;
 plot(time_s, sigma_used, 'LineWidth', 1.5, 'Color', [0.4940, 0.1840, 0.5560]);
 ylabel('σ_{triad} (deg)');
 title('Adaptive Measurement Noise');
 add_phase_background(time_s, flight_phase, phase_colors);
-
 subplot(3,1,2);
 hold on; grid on;
 gps_update_times = time_s(gps_update_flags);
@@ -650,7 +695,6 @@ ylim([0, 1.5]);
 yticks([0, 1]);
 yticklabels({'No', 'Yes'});
 add_phase_background(time_s, flight_phase, phase_colors);
-
 subplot(3,1,3);
 hold on; grid on;
 locked_times = time_s(gps_lock_flags);
@@ -674,7 +718,7 @@ add_phase_background(time_s, flight_phase, phase_colors);
 tab6 = uitab(tabgroup, 'Title', 'Error Statistics');
 axes('Parent', tab6);
 
-% Prepare data for boxplots - handle variable lengths properly
+% Prepare data for boxplots
 phase_labels = {};
 roll_data = [];
 roll_groups = [];
@@ -684,52 +728,43 @@ yaw_data = [];
 yaw_groups = [];
 total_data = [];
 total_groups = [];
-
 for p = 0:3
     phase_mask = flight_phase == p;
     if any(phase_mask)
         phase_labels{end+1} = phase_names{p+1};
         
-        % Roll errors
         roll_vals = abs(error_roll_quat(phase_mask));
         roll_data = [roll_data; roll_vals];
         roll_groups = [roll_groups; p * ones(length(roll_vals), 1)];
         
-        % Pitch errors
         pitch_vals = abs(error_pitch_quat(phase_mask));
         pitch_data = [pitch_data; pitch_vals];
         pitch_groups = [pitch_groups; p * ones(length(pitch_vals), 1)];
         
-        % Yaw errors
         yaw_vals = abs(error_yaw_quat(phase_mask));
         yaw_data = [yaw_data; yaw_vals];
         yaw_groups = [yaw_groups; p * ones(length(yaw_vals), 1)];
         
-        % Total errors
         total_vals = error_angle_mekf(phase_mask);
         total_data = [total_data; total_vals];
         total_groups = [total_groups; p * ones(length(total_vals), 1)];
     end
 end
-
 subplot(2,2,1);
 boxplot(roll_data, roll_groups, 'Labels', phase_labels);
 ylabel('Roll Error (deg)');
 title('Roll Error by Phase');
 grid on;
-
 subplot(2,2,2);
 boxplot(pitch_data, pitch_groups, 'Labels', phase_labels);
 ylabel('Pitch Error (deg)');
 title('Pitch Error by Phase');
 grid on;
-
 subplot(2,2,3);
 boxplot(yaw_data, yaw_groups, 'Labels', phase_labels);
 ylabel('Yaw Error (deg)');
 title('Yaw Error by Phase');
 grid on;
-
 subplot(2,2,4);
 boxplot(total_data, total_groups, 'Labels', phase_labels);
 ylabel('Total Error (deg)');
@@ -739,7 +774,6 @@ grid on;
 %% TAB 7: MEKF vs TRIAD
 tab7 = uitab(tabgroup, 'Title', 'MEKF vs TRIAD');
 axes('Parent', tab7);
-
 subplot(2,1,1);
 hold on; grid on;
 plot(time_s, error_angle_mekf, 'Color', color_mekf, 'LineWidth', 1.2, 'DisplayName', 'MEKF');
@@ -751,7 +785,6 @@ ylabel('Error (deg)');
 title('MEKF vs TRIAD Comparison');
 legend('Location', 'best');
 add_phase_background(time_s, flight_phase, phase_colors);
-
 subplot(2,1,2);
 hold on; grid on;
 if ~isempty(gps_idx)
@@ -787,7 +820,59 @@ if ~isempty(phase_transitions)
     end
 end
 
-fprintf('\nAll plots generated successfully in tabbed figure!\n');
+%% TAB 9: Raw vs Filtered TRIAD Comparison
+tab9 = uitab(tabgroup, 'Title', 'Raw vs Filtered TRIAD');
+axes('Parent', tab9);
+subplot(4,1,1);
+hold on; grid on;
+plot(time_s, true_roll, 'Color', color_true, 'LineWidth', 1.5, 'DisplayName', 'Reference');
+if ~isempty(gps_idx)
+    plot(time_s(gps_idx), triad_raw_roll(gps_idx), 'o', 'Color', color_triad_raw, ...
+        'MarkerSize', 4, 'LineWidth', 1, 'DisplayName', 'TRIAD (Unfiltered GPS)');
+    plot(time_s(gps_idx), triad_roll(gps_idx), 's', 'Color', color_triad, ...
+        'MarkerSize', 4, 'LineWidth', 1, 'DisplayName', 'TRIAD (Filtered GPS)');
+end
+ylabel('Roll (deg)');
+title('Raw vs Filtered TRIAD Comparison');
+legend('Location', 'best');
+add_phase_background(time_s, flight_phase, phase_colors);
+subplot(4,1,2);
+hold on; grid on;
+plot(time_s, true_pitch, 'Color', color_true, 'LineWidth', 1.5, 'DisplayName', 'Reference');
+if ~isempty(gps_idx)
+    plot(time_s(gps_idx), triad_raw_pitch(gps_idx), 'o', 'Color', color_triad_raw, ...
+        'MarkerSize', 4, 'LineWidth', 1, 'DisplayName', 'TRIAD (Unfiltered GPS)');
+    plot(time_s(gps_idx), triad_pitch(gps_idx), 's', 'Color', color_triad, ...
+        'MarkerSize', 4, 'LineWidth', 1, 'DisplayName', 'TRIAD (Filtered GPS)');
+end
+ylabel('Pitch (deg)');
+legend('Location', 'best');
+add_phase_background(time_s, flight_phase, phase_colors);
+subplot(4,1,3);
+hold on; grid on;
+plot(time_s, true_yaw, 'Color', color_true, 'LineWidth', 1.5, 'DisplayName', 'Reference');
+if ~isempty(gps_idx)
+    plot(time_s(gps_idx), triad_raw_yaw(gps_idx), 'o', 'Color', color_triad_raw, ...
+        'MarkerSize', 4, 'LineWidth', 1, 'DisplayName', 'TRIAD (Unfiltered GPS)');
+    plot(time_s(gps_idx), triad_yaw(gps_idx), 's', 'Color', color_triad, ...
+        'MarkerSize', 4, 'LineWidth', 1, 'DisplayName', 'TRIAD (Filtered GPS)');
+end
+ylabel('Yaw (deg)');
+legend('Location', 'best');
+add_phase_background(time_s, flight_phase, phase_colors);
+subplot(4,1,4);
+hold on; grid on;
+if ~isempty(gps_idx)
+    plot(time_s(gps_idx), error_angle_triad_raw(gps_idx), 'o', 'Color', color_triad_raw, ...
+        'MarkerSize', 4, 'LineWidth', 1, 'DisplayName', 'TRIAD (Unfiltered GPS)');
+    plot(time_s(gps_idx), error_angle_triad(gps_idx), 's', 'Color', color_triad, ...
+        'MarkerSize', 4, 'LineWidth', 1, 'DisplayName', 'TRIAD (Filtered GPS)');
+end
+xlabel('Time (s)');
+ylabel('Total Error (deg)');
+title('Error Comparison: Raw vs Filtered GPS');
+legend('Location', 'best');
+add_phase_background(time_s, flight_phase, phase_colors);
 
 %% Helper Function
 function add_phase_background(time_s, flight_phase, phase_colors)
