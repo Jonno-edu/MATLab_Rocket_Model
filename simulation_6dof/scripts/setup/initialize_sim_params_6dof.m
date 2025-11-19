@@ -13,7 +13,7 @@ aeroMatFilePath = fullfile(repoRoot, 'simulation_6dof', 'data', 'input', 'Combin
 
 % --- Core parameters
 burn_time = 60;
-warm_up_time = 5;
+warm_up_time = 10;
 timeStep = 0.005;
 Sim.Timestep = 0.0001;
 

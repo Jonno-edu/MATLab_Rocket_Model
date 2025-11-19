@@ -35,7 +35,9 @@ disp('Simulink model loaded.');
 simTime = 120;
 disp(['Simulation stop time set to: ', num2str(simTime), ' seconds.']);
 
-euler_0 = deg2rad([0 89 0]);
+euler_0 = deg2rad([0 90 0]);
+q_bw_initial = eul2quat(euler_0, 'ZYX');
+q_wl_initial = quatconj(q_bw_initial);
 
 % Run simulation
 disp('Starting Simulink simulation...');
